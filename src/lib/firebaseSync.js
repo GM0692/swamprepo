@@ -197,7 +197,10 @@ export async function endTurnAndAdvance(roomCode, currentSessionState) {
   await update(ref(db, `sessions/${roomCode}`), {
     activePlayerId: order[nextIndex],
     turnNumber: wrapped ? (currentSessionState.turnNumber || 1) + 1 : currentSessionState.turnNumber || 1,
-    timer: { running: false, startedAt: null, accumulatedMs: 0 },
+    // Starts already running for the next player, instead of leaving them to
+    // press Start themselves — the next player's own device still owns
+    // stopping it and passing the turn again.
+    timer: { running: true, startedAt: serverTimestamp(), accumulatedMs: 0 },
     lastActiveAt: serverTimestamp(),
   });
 }
