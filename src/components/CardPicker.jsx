@@ -18,16 +18,16 @@ export function CardPicker({ cards, sourceZone, onPick, placeholder, viewMode, s
       </div>
 
       {viewMode === 'image' ? (
-        <div className="ct-card-grid" style={{ marginTop: 10 }}>
+        <div className="ct-card-grid" style={{ marginTop: 10, maxHeight: 420, overflowY: 'auto', paddingRight: 2 }}>
           {available.length === 0 && <div className="ct-hint" style={{ padding: '8px 10px' }}>No matching cards in {ZONE_LABEL[sourceZone].toLowerCase()}.</div>}
-          {available.slice(0, 60).map((c) => (
+          {available.map((c) => (
             <CardThumb key={c.name} name={c.name} badge={c.zones[sourceZone] > 1 ? c.zones[sourceZone] : null} onClick={() => onPick(c.name)} />
           ))}
         </div>
       ) : (
         <div className="ct-picker-list">
           {available.length === 0 && <div className="ct-hint" style={{ padding: '8px 10px' }}>No matching cards in {ZONE_LABEL[sourceZone].toLowerCase()}.</div>}
-          {available.slice(0, 30).map((c) => (
+          {available.map((c) => (
             <div key={c.name} className="ct-picker-item" onClick={() => onPick(c.name)}>
               <span>{c.name}</span>
               <span className="ct-hint">{c.zones[sourceZone]} left</span>
