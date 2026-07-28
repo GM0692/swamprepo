@@ -223,7 +223,7 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
       </div>
 
       <div className="ct-panel" style={{ marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showDeckList ? 12 : 0 }}>
+        <div className="ct-row-between" style={{ marginBottom: showDeckList ? 12 : 0 }}>
           <div className="ct-zone-title" style={{ margin: 0 }}><ListTree size={13} /> Full deck list</div>
           <button className="ct-btn sm" onClick={() => setShowDeckList((v) => !v)}>{showDeckList ? 'Hide' : 'Show'}</button>
         </div>
@@ -231,7 +231,7 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
       </div>
 
       <div className="ct-panel" style={{ marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="ct-row-between" style={{ marginBottom: 12 }}>
           <div className="ct-zone-title" style={{ margin: 0 }}><Sparkles size={13} /> AI play suggestion</div>
           <button className="ct-btn sm primary" onClick={handleSuggest} disabled={suggestLoading}>
             {suggestLoading ? <Loader2 size={14} className="ct-spin" /> : <Sparkles size={14} />} Suggest a play

@@ -25,7 +25,7 @@ export function HandSetup({ game, setGame, onBegin, viewMode, setViewMode }) {
         <CardPicker cards={game.cards} sourceZone="library" placeholder="Search your deck..." onPick={(name) => moveOne(name, 'library', 'hand')} viewMode={viewMode} setViewMode={setViewMode} />
       </div>
       <div className="ct-panel">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="ct-row-between">
           <div className="ct-zone-title" style={{ margin: 0 }}><HandIcon size={13} /> Opening hand <span className="ct-zone-count">{handCount}</span></div>
           <ViewToggle mode={viewMode} setMode={setViewMode} />
         </div>

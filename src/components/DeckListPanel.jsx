@@ -60,7 +60,7 @@ export function DeckListPanel({ game, moveOne, viewMode, setViewMode }) {
 
   return (
     <div className="ct-panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div className="ct-row-between" style={{ marginBottom: 10 }}>
         <div className="ct-zone-title" style={{ margin: 0 }}><ListTree size={13} /> Full deck list <span className="ct-zone-count">{game.cards.length} unique</span></div>
         <ViewToggle mode={viewMode} setMode={setViewMode} />
       </div>

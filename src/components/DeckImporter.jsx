@@ -67,7 +67,7 @@ export function DeckImporter({ onSaved, onCancel }) {
 
   return (
     <div className="ct-panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div className="ct-row-between" style={{ marginBottom: 16 }}>
         <div className="ct-display" style={{ fontSize: 20, fontWeight: 700 }}>Import a deck</div>
         <button className="ct-btn ghost" onClick={onCancel}><X size={16} /></button>
       </div>
