@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { List as ListIcon, LayoutGrid } from 'lucide-react';
-import { scryfallImageUrl } from '../lib/scryfall.js';
+import { getCardImageUrl } from '../lib/scryfall.js';
 
 export function ViewToggle({ mode, setMode }) {
   return (
@@ -12,12 +12,24 @@ export function ViewToggle({ mode, setMode }) {
 }
 
 export function CardThumb({ name, badge, selected, onClick }) {
+  const [src, setSrc] = useState(undefined); // undefined = still resolving, null = no image found
   const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc(undefined);
+    setBroken(false);
+    getCardImageUrl(name).then((url) => {
+      if (!cancelled) setSrc(url);
+    });
+    return () => { cancelled = true; };
+  }, [name]);
+
   return (
     <div className={`ct-thumb ${selected ? 'selected' : ''}`} onClick={onClick}>
       {badge != null && <span className="ct-thumb-badge">{badge}</span>}
-      {!broken ? (
-        <img src={scryfallImageUrl(name, 'small')} alt={name} loading="lazy" onError={() => setBroken(true)} />
+      {src && !broken ? (
+        <img src={src} alt={name} loading="lazy" onError={() => setBroken(true)} />
       ) : (
         <div className="ct-thumb-fallback">{name}</div>
       )}

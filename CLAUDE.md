@@ -48,9 +48,12 @@ Core features, in the order they were built:
   is split across more than one zone (e.g. several basic lands, some in hand and some in library)
   does it require tap-source-then-tap-destination. See `handleBadgeClick` in
   `DeckListPanel.jsx`.
-- **Card art comes from Scryfall's public "named card, format=image" endpoint**, used directly as
-  an `<img src>` — see `src/lib/scryfall.js`. No API key needed, no JS fetch/CORS involved (it's
-  just an image load), with a graceful text fallback on 404/mismatch (`CardThumb.jsx`).
+- **Card art comes from Scryfall's public `/cards/collection` bulk endpoint**, batched (up to 75
+  names per request) and cached in memory by `getCardImageUrl()` in `src/lib/scryfall.js`, then
+  consumed by `CardThumb.jsx` as a resolved `<img src>`, with a text fallback while resolving or
+  on no-match/error. No API key needed. This replaced firing one `/cards/named` request per card
+  — doing that for a full deck view (dozens of cards mounting into image view at once) reliably
+  tripped Scryfall's rate limit and left a chunk of thumbnails permanently broken.
 - **AI calls use the person's own Anthropic API key**, entered in the Settings tab and stored in
   `localStorage`, sent directly from the browser to `api.anthropic.com` with the
   `anthropic-dangerous-direct-browser-access` header. This is explicitly flagged in both the
@@ -98,8 +101,6 @@ src/
 
 - No multi-device sync (localStorage is per-browser).
 - No commander damage tracking (only generic life totals per opponent).
-- Scryfall art isn't cached — repeat games re-fetch the same images (browser HTTP cache softens
-  this, but there's no app-level cache).
 - Moxfield/Archidekt direct URL import is best-effort; CORS blocks it more often than not from a
   `localhost` origin. It may behave better once deployed to a real domain, but that's untested.
 - Not a PWA yet — no offline support, no "add to home screen" manifest, which would matter for
@@ -111,7 +112,6 @@ src/
 - IndexedDB or a real backend behind `storage.js` for multi-device sync.
 - Per-opponent commander damage counters.
 - PWA manifest + service worker for offline use at the table.
-- Local cache of name→image-URL lookups.
 - A small serverless proxy for the Anthropic API key if this is ever deployed publicly.
 
 ## Working conventions
