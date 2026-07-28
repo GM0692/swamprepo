@@ -11,7 +11,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getDatabase, ref, get, set, update, remove, onValue, off, onDisconnect, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, get, update, remove, onValue, off, onDisconnect, serverTimestamp } from 'firebase/database';
 import { sGet, sSet, sDelete } from './storage.js';
 
 const ROOM_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L — easy to read/type on a phone
@@ -68,18 +68,22 @@ export async function createSession(hostName) {
   const user = await requireAuth();
   const roomCode = await pickRoomCode();
   const playerId = user.uid;
-  await set(ref(db, `sessions/${roomCode}`), {
-    hostPlayerId: playerId,
-    status: 'lobby',
-    createdAt: serverTimestamp(),
-    lastActiveAt: serverTimestamp(),
-    turnOrder: [],
-    activePlayerId: null,
-    turnNumber: 0,
-    timer: { running: false, startedAt: null, accumulatedMs: 0 },
-    players: {
-      [playerId]: { name: hostName.trim().slice(0, 24), life: STARTING_LIFE, seatOrder: 0, online: true },
-    },
+  // A single set() at sessions/{roomCode} would only be checked against a
+  // .write rule at that exact path or an ancestor — and database.rules.json
+  // deliberately grants no such blanket rule (see its comments). update()
+  // against the root, with one absolute-path key per field, makes each key
+  // validate independently against its own field-level rule instead.
+  const base = `sessions/${roomCode}`;
+  await update(ref(db), {
+    [`${base}/hostPlayerId`]: playerId,
+    [`${base}/status`]: 'lobby',
+    [`${base}/createdAt`]: serverTimestamp(),
+    [`${base}/lastActiveAt`]: serverTimestamp(),
+    [`${base}/turnOrder`]: [],
+    [`${base}/activePlayerId`]: null,
+    [`${base}/turnNumber`]: 0,
+    [`${base}/timer`]: { running: false, startedAt: null, accumulatedMs: 0 },
+    [`${base}/players/${playerId}`]: { name: hostName.trim().slice(0, 24), life: STARTING_LIFE, seatOrder: 0, online: true },
   });
   registerDisconnectHandlers(roomCode, playerId);
   return { roomCode, playerId };
@@ -121,15 +125,15 @@ export async function leaveSession(roomCode, playerId) {
   if (!snap.exists()) return;
   const session = snap.val();
   const remainingIds = Object.keys(session.players || {}).filter((id) => id !== playerId);
-  if (remainingIds.length === 0) {
-    await remove(sessionRef);
-    return;
-  }
+  // No .write rule is granted on sessions/{roomCode} itself (see createSession's
+  // comment), so a whole-node remove() here isn't permitted even for the last
+  // player leaving — instead just empty it out; pickRoomCode()'s abandoned-room
+  // reclaim (>12h stale) cleans it up whenever the code gets reused.
   await remove(ref(db, `sessions/${roomCode}/players/${playerId}`));
   const turnOrder = (session.turnOrder || []).filter((id) => id !== playerId);
   const updates = { turnOrder, lastActiveAt: serverTimestamp() };
   if (session.activePlayerId === playerId) updates.activePlayerId = turnOrder[0] || null;
-  if (session.hostPlayerId === playerId) updates.hostPlayerId = remainingIds[0];
+  if (session.hostPlayerId === playerId) updates.hostPlayerId = remainingIds[0] || null;
   await update(sessionRef, updates);
 }
 
