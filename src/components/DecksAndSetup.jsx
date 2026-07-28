@@ -53,10 +53,14 @@ export function GameSetup({ deckIndex, onStart }) {
   useEffect(() => {
     let unsubscribe;
     (async () => {
-      const { seat: savedSeat } = await bootstrapSession();
-      if (!savedSeat) return;
-      setSeat(savedSeat);
-      unsubscribe = subscribeToSession(savedSeat.roomCode, setSessionState);
+      try {
+        const { seat: savedSeat } = await bootstrapSession();
+        if (!savedSeat) return;
+        setSeat(savedSeat);
+        unsubscribe = subscribeToSession(savedSeat.roomCode, setSessionState);
+      } catch (e) {
+        /* no linked session available — fall back to the manual opponent-count picker below */
+      }
     })();
     return () => unsubscribe?.();
   }, []);

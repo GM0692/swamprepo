@@ -10,6 +10,8 @@ import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 export function GroupSession({ onGoToSettings }) {
   const [config, setConfig] = useState(undefined); // undefined = loading, null = not configured
   const [seat, setSeat] = useState(undefined); // undefined = loading, null = no seat yet
+  const [bootError, setBootError] = useState('');
+  const [bootAttempt, setBootAttempt] = useState(0);
   const [sessionState, setSessionState] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -20,12 +22,25 @@ export function GroupSession({ onGoToSettings }) {
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setConfig(undefined);
+    setSeat(undefined);
+    setBootError('');
     (async () => {
-      const { configured, seat: savedSeat } = await bootstrapSession();
-      setConfig(configured ? true : null);
-      setSeat(savedSeat || null);
+      try {
+        const { configured, seat: savedSeat } = await bootstrapSession();
+        if (cancelled) return;
+        setConfig(configured ? true : null);
+        setSeat(savedSeat || null);
+      } catch (e) {
+        if (cancelled) return;
+        setConfig(true); // we do have a config — the failure was signing in, not "unconfigured"
+        setSeat(null);
+        setBootError(e.message || "Couldn't connect to Firebase.");
+      }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [bootAttempt]);
 
   useEffect(() => {
     if (!seat) return undefined;
@@ -129,6 +144,14 @@ export function GroupSession({ onGoToSettings }) {
   if (!seat) {
     return (
       <div className="ct-panel">
+        {bootError && (
+          <div className="ct-hint" style={{ color: 'var(--danger)', marginBottom: 16, lineHeight: 1.6 }}>
+            {bootError}
+            <div style={{ marginTop: 8 }}>
+              <button className="ct-btn sm" onClick={() => setBootAttempt((n) => n + 1)}>Retry connecting</button>
+            </div>
+          </div>
+        )}
         <div className="ct-zone-title"><Users size={13} /> Host a session</div>
         <input className="ct-input" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} style={{ marginBottom: 8 }} />
         <button className="ct-btn primary sm" onClick={handleHost} disabled={busy || !hostName.trim()}>Host a session</button>

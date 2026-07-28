@@ -39,9 +39,13 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
     let unsubscribe;
     let cancelled = false;
     (async () => {
-      await bootstrapSession();
-      if (cancelled) return;
-      unsubscribe = subscribeToSession(game.sessionId, setSessionState);
+      try {
+        await bootstrapSession();
+        if (cancelled) return;
+        unsubscribe = subscribeToSession(game.sessionId, setSessionState);
+      } catch (e) {
+        /* sync unavailable — the panel below just stays on local life totals */
+      }
     })();
     return () => { cancelled = true; unsubscribe?.(); };
   }, [game.sessionId]);

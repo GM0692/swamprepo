@@ -10,7 +10,10 @@
 // by this module.
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import {
+  initializeAuth, indexedDBLocalPersistence, browserLocalPersistence,
+  browserSessionPersistence, inMemoryPersistence, signInAnonymously,
+} from 'firebase/auth';
 import { getDatabase, ref, get, update, remove, onValue, off, onDisconnect, serverTimestamp } from 'firebase/database';
 import { sGet, sSet, sDelete } from './storage.js';
 
@@ -18,6 +21,7 @@ const ROOM_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L — e
 const ABANDONED_MS = 12 * 60 * 60 * 1000; // a room this stale on collision is treated as dead and reclaimed
 const SEAT_KEY = 'session-seat';
 const STARTING_LIFE = 40;
+const AUTH_TIMEOUT_MS = 10000;
 
 let db = null;
 let authReadyPromise = null;
@@ -26,15 +30,35 @@ export function isFirebaseConfigured(config) {
   return !!(config && typeof config === 'object' && config.apiKey && config.databaseURL && config.projectId);
 }
 
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
 // Idempotent: safe to call on every app load once a config exists in Settings.
+// Some mobile browser contexts (Safari private mode, restrictive in-app
+// browsers) don't support IndexedDB reliably, and Firebase Auth's sign-in can
+// hang indefinitely instead of erroring when its persistence layer can't work
+// — hence the explicit persistence fallback chain and the timeout below,
+// rather than trusting getAuth()'s default to always settle.
 export function initFirebase(config) {
   if (!db) {
     const app = getApps().length ? getApp() : initializeApp(config);
     db = getDatabase(app);
-    const auth = getAuth(app);
-    authReadyPromise = auth.currentUser
+    const auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, inMemoryPersistence],
+    });
+    const signIn = auth.currentUser
       ? Promise.resolve(auth.currentUser)
-      : signInAnonymously(auth).then((cred) => cred.user);
+      : withTimeout(signInAnonymously(auth), AUTH_TIMEOUT_MS, "Couldn't sign in to Firebase — check your connection and try again.").then((cred) => cred.user);
+    authReadyPromise = signIn.catch((err) => {
+      // Let a future call retry from scratch instead of replaying this same failure forever.
+      db = null;
+      authReadyPromise = null;
+      throw err;
+    });
   }
   return authReadyPromise;
 }
