@@ -8,15 +8,30 @@ import { isFirebaseConfigured } from '../lib/firebaseSync.js';
 function parseFirebaseConfigInput(text) {
   const trimmed = text.trim();
   if (!trimmed) return null;
+  let value = null;
   try {
-    return JSON.parse(trimmed);
+    value = JSON.parse(trimmed);
   } catch { /* fall through to the lenient parse below */ }
-  try {
-    const objText = trimmed.replace(/^\s*(const|let|var)\s+\w+\s*=\s*/, '').replace(/;\s*$/, '');
-    const value = Function(`"use strict"; return (${objText});`)(); // eslint-disable-line no-new-func
-    if (value && typeof value === 'object') return value;
-  } catch { /* not parseable either way */ }
-  return null;
+  if (!value) {
+    try {
+      const objText = trimmed.replace(/^\s*(const|let|var)\s+\w+\s*=\s*/, '').replace(/;\s*$/, '');
+      value = Function(`"use strict"; return (${objText});`)(); // eslint-disable-line no-new-func
+    } catch { /* not parseable either way */ }
+  }
+  if (!value || typeof value !== 'object') return null;
+  // Mobile keyboards (autocorrect/autocapitalize) can silently mangle a
+  // pasted value inside one of these fields — trim each individually rather
+  // than trusting the outer trim() to have caught everything.
+  const trimmed2 = {};
+  Object.entries(value).forEach(([k, v]) => { trimmed2[k] = typeof v === 'string' ? v.trim() : v; });
+  return trimmed2;
+}
+
+// Google API keys are always this shape — catches a mangled paste (a common
+// mobile-keyboard-autocorrect failure mode) immediately at save time instead
+// of surfacing as an opaque auth/api-key-not-valid error later.
+function looksLikeValidApiKey(key) {
+  return typeof key === 'string' && /^AIza[0-9A-Za-z_-]{35}$/.test(key);
 }
 
 export function SettingsTab() {
@@ -56,6 +71,10 @@ export function SettingsTab() {
     const parsed = parseFirebaseConfigInput(firebaseConfigText);
     if (!isFirebaseConfigured(parsed)) {
       setFirebaseError("Couldn't read that as a Firebase config — paste the whole object from your Firebase console's Web App settings.");
+      return;
+    }
+    if (!looksLikeValidApiKey(parsed.apiKey)) {
+      setFirebaseError("That apiKey doesn't look right (should be \"AIza\" followed by 35 more characters) — this usually means a phone keyboard's autocorrect changed a character while pasting. Try clearing the field and pasting again.");
       return;
     }
     await sSet('settings:firebaseConfig', parsed);
@@ -109,6 +128,10 @@ export function SettingsTab() {
         placeholder={'{\n  "apiKey": "...",\n  "authDomain": "...",\n  "databaseURL": "...",\n  "projectId": "..."\n}'}
         value={firebaseConfigText}
         onChange={(e) => setFirebaseConfigText(e.target.value)}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        spellCheck={false}
       />
       {firebaseError && <div className="ct-hint" style={{ color: 'var(--danger)', marginTop: 8 }}>{firebaseError}</div>}
       <button className="ct-btn primary" style={{ marginTop: 12 }} onClick={handleSaveFirebase}>
