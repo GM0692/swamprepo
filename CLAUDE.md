@@ -29,6 +29,13 @@ Core features, in the order they were built:
    artifact sandbox's content-security-policy silently blocked Scryfall image loads, and because
    the artifact's `window.storage` and in-artifact Claude API bridge are sandbox-only stubs that
    don't exist in a real deployed app.
+8. **Multiplayer group sessions** — a "Group" tab where each player, on their own phone, can host
+   or join a shared session by a 4-character room code and get live-synced life totals, turn
+   order, and a turn timer across every device in the group, with a screen flash + vibrate when
+   the turn passes to you. Backed by Firebase Realtime Database (the user's own free project,
+   config pasted in Settings) since the app has no server of its own — see `src/lib/firebaseSync.js`
+   and `database.rules.json`. Deliberately narrow in scope: only life/turn/timer state is synced;
+   each player's own deck/hand/battlefield tracking stays local exactly as it always has.
 
 ## Key design decisions (don't undo these without reason)
 
@@ -62,6 +69,18 @@ Core features, in the order they were built:
 - **All persistence currently goes through `src/lib/storage.js`**, a thin async wrapper around
   `localStorage`. It's written with a stable `sGet/sSet/sDelete/sList` interface specifically so
   it can be swapped for a real backend later without touching component code.
+- **Firebase Realtime Database security rules grant write access per-field, not at the room root**
+  (`database.rules.json`) — this is load-bearing, not a style choice. `set()`/`remove()` are only
+  validated at their own exact target path (walking up ancestors for a cascading grant); they
+  cannot "borrow" permission from a more specific rule on one of their children. A blanket
+  `.write` rule at `sessions/{roomCode}` would silently defeat the per-player isolation (anyone in
+  the room could overwrite anyone else's life/name), so shared fields are each their own rule and
+  written via `update()` with fully-qualified paths instead of a single nested `set()` — see the
+  comments in `createSession`/`leaveSession` in `src/lib/firebaseSync.js` for the specific
+  PERMISSION_DENIED failure mode this avoids.
+- **Player identity for sync uses silent Firebase Anonymous Auth**, not a real login — there's no
+  account system, no visible sign-in UI. It exists purely so security rules can tell "you" apart
+  from other players in the room via `auth.uid`.
 
 ## Architecture map
 
@@ -83,23 +102,39 @@ src/
     deckImport.js         — decklist text parsing + Moxfield/Archidekt URL fetch attempts
     constants.js          — PHASES, ZONE_KEYS/ZONE_LABEL, moveLabel() (auto-generated log text
                             per zone transition), makeActiveGame() (game state constructor)
+    firebaseSync.js        — all Firebase Realtime Database logic: init (silent Anonymous Auth),
+                            session create/join/start/leave, live subscription, life/timer/turn
+                            actions, onDisconnect handling, local "which seat am I" persistence
   components/
     DeckImporter.jsx       — paste-or-URL import flow, commander marking
-    DecksAndSetup.jsx      — DecksTab (saved deck list) + GameSetup (deck/opponent picker)
+    DecksAndSetup.jsx      — DecksTab (saved deck list) + GameSetup (deck/opponent picker; detects
+                            an active group session and derives opponent count from its roster)
     HandSetup.jsx           — the post-"Load deck", pre-"Begin game" opening hand selection step
     CardPicker.jsx          — searchable card picker used by HandSetup and "Draw a card"
     CardThumb.jsx           — ViewToggle + CardThumb (art tile w/ fallback), shared everywhere
     DeckListPanel.jsx       — full deck list with search, "Full list" vs "Still in library"
                             toggle, list/image view, tap-to-move zone badges
     GameBoard.jsx           — the main active-game screen: turn ledger, life totals, library/
-                            command zone, hand/battlefield/graveyard/exile, AI suggestion panel
+                            command zone, hand/battlefield/graveyard/exile, AI suggestion panel;
+                            renders SyncedLifePanel/TurnTimerPanel instead of local life totals
+                            when game.sessionId is set
     EndGameAndHistory.jsx   — EndGameModal (win/loss/draw) + HistoryTab (past games, AI analysis)
-    SettingsTab.jsx          — Anthropic API key + model override, stored locally
+    SettingsTab.jsx          — Anthropic API key + model override, Firebase config, all local
+    GroupSession.jsx         — the "Group" tab: host/join a session by room code, lobby roster +
+                            reorder, then the same SyncedLifePanel/TurnTimerPanel used standalone
+    SyncedLifePanel.jsx      — shared-session life totals (your row editable, others real-name
+                            read-only), used by both GroupSession and GameBoard
+    TurnTimerPanel.jsx       — shared-session turn/timer display + Start/Stop/End-turn-and-pass
+                            controls (only shown to the active player), used by both
 ```
 
 ## Known limitations / things not yet done
 
-- No multi-device sync (localStorage is per-browser).
+- No deck/hand/battlefield sync — only life totals, turn order, and the turn timer are shared via
+  a group session; each player's own card tracking is still local-only (localStorage is per-browser).
+- Group sessions have no real cleanup job (no server-side cron is possible on a static site) —
+  abandoned rooms just sit in Firebase until a room-code collision reclaims them after 12h, or the
+  user manually clears `/sessions` in the Firebase console.
 - No commander damage tracking (only generic life totals per opponent).
 - Moxfield/Archidekt direct URL import is best-effort; CORS blocks it more often than not from a
   `localhost` origin. It may behave better once deployed to a real domain, but that's untested.
@@ -109,7 +144,10 @@ src/
 
 ## Ideas discussed for extending this (not started)
 
-- IndexedDB or a real backend behind `storage.js` for multi-device sync.
+- Syncing deck/hand/battlefield state too (currently only life/turn/timer sync); would need a
+  much bigger rethink since card tracking assumes a single local perspective today.
+- True push notifications for "it's your turn" (needs a PWA + service worker + push infra —
+  today's turn alert is an in-tab screen flash + vibration, only works while the tab is open).
 - Per-opponent commander damage counters.
 - PWA manifest + service worker for offline use at the table.
 - A small serverless proxy for the Anthropic API key if this is ever deployed publicly.
