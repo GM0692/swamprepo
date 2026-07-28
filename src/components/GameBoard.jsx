@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Clock, Sparkles, Plus, Minus, ChevronRight, Library as LibraryIcon,
   Skull, Ban, Hand as HandIcon, Layers, Crown, Shield, Loader2, ListTree,
 } from 'lucide-react';
 import { CardPicker } from './CardPicker.jsx';
 import { DeckListPanel } from './DeckListPanel.jsx';
+import { SyncedLifePanel } from './SyncedLifePanel.jsx';
+import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 import { askClaude } from '../lib/claudeApi.js';
+import { bootstrapSession, subscribeToSession } from '../lib/firebaseSync.js';
 import { PHASES, totalIn, uid, timeNow, moveLabel } from '../lib/constants.js';
 
 function CardRow({ label, actions }) {
@@ -24,6 +27,56 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
   const [suggestError, setSuggestError] = useState('');
   const [drawing, setDrawing] = useState(false);
   const [showDeckList, setShowDeckList] = useState(false);
+  const [sessionState, setSessionState] = useState(null);
+  const [turnFlash, setTurnFlash] = useState(false);
+  const prevActivePlayerRef = useRef(undefined);
+
+  // Subscribes to the linked group session, if any — a page refresh loses
+  // Firebase's in-memory init, so bootstrapSession() re-initializes it
+  // (idempotent) before subscribing.
+  useEffect(() => {
+    if (!game.sessionId) { setSessionState(null); return undefined; }
+    let unsubscribe;
+    let cancelled = false;
+    (async () => {
+      await bootstrapSession();
+      if (cancelled) return;
+      unsubscribe = subscribeToSession(game.sessionId, setSessionState);
+    })();
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [game.sessionId]);
+
+  // Mirrors the session's live life totals onto local game.life (you ->
+  // your synced life, others -> opp1..oppN by turn order) so everything
+  // downstream that already reads game.life — the AI prompt, end-game
+  // history — keeps working unmodified, unaware sync exists.
+  useEffect(() => {
+    if (!game.sessionId || !sessionState) return;
+    const order = sessionState.turnOrder?.length ? sessionState.turnOrder : Object.keys(sessionState.players || {});
+    const others = order.filter((id) => id !== game.sessionPlayerId);
+    const me = sessionState.players?.[game.sessionPlayerId];
+    const nextLife = { you: me ? me.life : game.life.you };
+    others.forEach((id, i) => {
+      const p = sessionState.players?.[id];
+      if (p) nextLife[`opp${i + 1}`] = p.life;
+    });
+    setGame((prev) => (JSON.stringify(prev.life) === JSON.stringify(nextLife) ? prev : { ...prev, life: nextLife }));
+  }, [sessionState, game.sessionId, game.sessionPlayerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flashes/vibrates only on the transition into your turn, not on initial subscribe.
+  useEffect(() => {
+    if (!sessionState) return undefined;
+    const activeId = sessionState.activePlayerId;
+    const prevActiveId = prevActivePlayerRef.current;
+    prevActivePlayerRef.current = activeId;
+    if (prevActiveId !== undefined && prevActiveId !== activeId && activeId === game.sessionPlayerId) {
+      setTurnFlash(true);
+      navigator.vibrate?.([200, 100, 200]);
+      const t = setTimeout(() => setTurnFlash(false), 4000);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [sessionState?.activePlayerId, game.sessionPlayerId]);
 
   function moveOne(name, from, to, { silent } = {}) {
     setGame((prev) => {
@@ -148,22 +201,33 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
           </div>
         </div>
 
-        <div className="ct-panel">
-          <div className="ct-zone-title"><Shield size={13} /> Life totals</div>
-          <div className="ct-life-row">
-            <div className="ct-life-name">You</div>
-            <button className="ct-btn ghost sm" onClick={() => adjustLife('you', -1)}><Minus size={13} /></button>
-            <div className="ct-life-num">{game.life.you}</div>
-            <button className="ct-btn ghost sm" onClick={() => adjustLife('you', 1)}><Plus size={13} /></button>
-          </div>
-          {opponentKeys.map((k, i) => (
-            <div className="ct-life-row" key={k}>
-              <div className="ct-life-name">Opponent {i + 1}</div>
-              <button className="ct-btn ghost sm" onClick={() => adjustLife(k, -1)}><Minus size={13} /></button>
-              <div className="ct-life-num">{game.life[k]}</div>
-              <button className="ct-btn ghost sm" onClick={() => adjustLife(k, 1)}><Plus size={13} /></button>
-            </div>
-          ))}
+        <div className={`ct-panel ${turnFlash ? 'ct-turn-flash' : ''}`}>
+          {game.sessionId ? (
+            <>
+              <SyncedLifePanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              <div style={{ marginTop: 16 }}>
+                <TurnTimerPanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="ct-zone-title"><Shield size={13} /> Life totals</div>
+              <div className="ct-life-row">
+                <div className="ct-life-name">You</div>
+                <button className="ct-btn ghost sm" onClick={() => adjustLife('you', -1)}><Minus size={13} /></button>
+                <div className="ct-life-num">{game.life.you}</div>
+                <button className="ct-btn ghost sm" onClick={() => adjustLife('you', 1)}><Plus size={13} /></button>
+              </div>
+              {opponentKeys.map((k, i) => (
+                <div className="ct-life-row" key={k}>
+                  <div className="ct-life-name">Opponent {i + 1}</div>
+                  <button className="ct-btn ghost sm" onClick={() => adjustLife(k, -1)}><Minus size={13} /></button>
+                  <div className="ct-life-num">{game.life[k]}</div>
+                  <button className="ct-btn ghost sm" onClick={() => adjustLife(k, 1)}><Plus size={13} /></button>
+                </div>
+              ))}
+            </>
+          )}
 
           <div className="ct-zone-title" style={{ marginTop: 18 }}><LibraryIcon size={13} /> Library <span className="ct-zone-count">{libraryCount}</span></div>
           {!drawing && <button className="ct-btn sm" onClick={() => setDrawing(true)} disabled={libraryCount === 0}>Draw a card</button>}

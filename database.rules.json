@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "sessions": {
+      ".read": false,
+      ".write": false,
+      "$roomCode": {
+        ".read": "auth != null",
+        "hostPlayerId": { ".write": "auth != null" },
+        "status": { ".write": "auth != null" },
+        "createdAt": { ".write": "auth != null" },
+        "lastActiveAt": { ".write": "auth != null" },
+        "turnOrder": { ".write": "auth != null" },
+        "activePlayerId": { ".write": "auth != null" },
+        "turnNumber": { ".write": "auth != null" },
+        "timer": { ".write": "auth != null" },
+        "players": {
+          "$playerId": {
+            ".write": "auth != null && auth.uid === $playerId",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "life": { ".validate": "newData.isNumber()" },
+            "seatOrder": { ".validate": "newData.isNumber()" },
+            "online": { ".validate": "newData.isBoolean()" }
+          }
+        }
+      }
+    }
+  }
+}

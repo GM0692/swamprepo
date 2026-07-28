@@ -52,7 +52,7 @@ export function totalIn(cards, zoneKey) {
   return cards.reduce((s, c) => s + c.zones[zoneKey], 0);
 }
 
-export function makeActiveGame(deck, opponentCount) {
+export function makeActiveGame(deck, opponentCount, sessionLink = null) {
   const cards = [];
   deck.mainboard.forEach((c) => {
     cards.push({
@@ -83,5 +83,7 @@ export function makeActiveGame(deck, opponentCount) {
     cards,
     commanderCastCounts: {},
     log: [],
+    sessionId: sessionLink?.roomCode || null,
+    sessionPlayerId: sessionLink?.playerId || null,
   };
 }

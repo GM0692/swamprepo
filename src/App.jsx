@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Swords, BookOpen, History as HistoryIcon, Loader2, Settings as SettingsIcon } from 'lucide-react';
+import { Swords, BookOpen, History as HistoryIcon, Loader2, Settings as SettingsIcon, Users } from 'lucide-react';
 import { sGet, sSet, sDelete } from './lib/storage.js';
 import { PHASES, uid, timeNow, makeActiveGame } from './lib/constants.js';
 import { askClaude } from './lib/claudeApi.js';
@@ -8,6 +8,7 @@ import { HandSetup } from './components/HandSetup.jsx';
 import { GameBoard } from './components/GameBoard.jsx';
 import { EndGameModal, HistoryTab } from './components/EndGameAndHistory.jsx';
 import { SettingsTab } from './components/SettingsTab.jsx';
+import { GroupSession } from './components/GroupSession.jsx';
 
 export default function App() {
   const [tab, setTab] = useState('play');
@@ -53,8 +54,8 @@ export default function App() {
     })();
   }, [activeGame?.deckId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleStartGame(deck, opponentCount) {
-    const g = makeActiveGame(deck, opponentCount);
+  async function handleStartGame(deck, opponentCount, sessionSeat) {
+    const g = makeActiveGame(deck, opponentCount, sessionSeat);
     setActiveGame(g);
     await sSet('active-game', g);
   }
@@ -134,6 +135,7 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
             <button className={`ct-tab ${tab === 'decks' ? 'active' : ''}`} onClick={() => setTab('decks')}><BookOpen size={15} /> Decks</button>
             <button className={`ct-tab ${tab === 'play' ? 'active' : ''}`} onClick={() => setTab('play')}><Swords size={15} /> Play</button>
             <button className={`ct-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}><HistoryIcon size={15} /> History</button>
+            <button className={`ct-tab ${tab === 'group' ? 'active' : ''}`} onClick={() => setTab('group')}><Users size={15} /> Group</button>
             <button className={`ct-tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><SettingsIcon size={15} /> Settings</button>
           </div>
         </div>
@@ -153,6 +155,7 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
         )}
 
         {tab === 'history' && <HistoryTab gameIndex={gameIndex} />}
+        {tab === 'group' && <GroupSession onGoToSettings={() => setTab('settings')} />}
         {tab === 'settings' && <SettingsTab />}
 
         {showEndModal && activeGame && <EndGameModal onConfirm={handleConfirmEnd} onCancel={() => setShowEndModal(false)} />}

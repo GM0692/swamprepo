@@ -173,6 +173,23 @@ html, body, #root { height: 100%; margin: 0; }
 .ct-spin { animation: ct-spin 0.9s linear infinite; }
 @keyframes ct-spin { to { transform: rotate(360deg); } }
 
+.ct-online-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+.ct-online-dot.on { background: var(--success); }
+.ct-online-dot.off { background: var(--text-faint); }
+
+.ct-roomcode {
+  font-family: 'Big Shoulders Display', sans-serif; letter-spacing: 0.1em; font-size: 13px;
+  background: var(--bg-void); border: 1px solid var(--border-hair); border-radius: 6px; padding: 1px 8px; margin-left: 6px;
+}
+
+.ct-timer-box { background: var(--bg-void); border: 1px solid var(--border-hair); border-radius: 10px; padding: 14px; }
+
+@keyframes ct-turn-flash {
+  0%, 100% { box-shadow: 0 0 0 1px var(--border-hair); }
+  50% { box-shadow: 0 0 0 3px var(--accent-gold), 0 0 24px rgba(204, 159, 63, 0.5); }
+}
+.ct-turn-flash { animation: ct-turn-flash 1s ease-in-out 4; }
+
 @media (max-width: 480px) {
   .ct-shell { padding: 14px 12px 40px; }
   .ct-title { font-size: 26px; }
