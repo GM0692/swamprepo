@@ -4,6 +4,7 @@ import {
   Skull, Ban, Hand as HandIcon, Layers, Crown, Shield, Loader2, ListTree,
 } from 'lucide-react';
 import { CardPicker } from './CardPicker.jsx';
+import { ViewToggle, CardThumb } from './CardThumb.jsx';
 import { DeckListPanel } from './DeckListPanel.jsx';
 import { SyncedLifePanel } from './SyncedLifePanel.jsx';
 import { MyLifeControl } from './MyLifeControl.jsx';
@@ -28,6 +29,7 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
   const [suggestError, setSuggestError] = useState('');
   const [drawing, setDrawing] = useState(false);
   const [showDeckList, setShowDeckList] = useState(false);
+  const [expandedHand, setExpandedHand] = useState(null);
   const [sessionState, setSessionState] = useState(null);
   const [turnFlash, setTurnFlash] = useState(false);
   const prevActivePlayerRef = useRef(undefined);
@@ -258,14 +260,42 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
         </div>
 
         <div className="ct-panel">
-          <div className="ct-zone-title"><HandIcon size={13} /> Hand <span className="ct-zone-count">{totalIn(game.cards, 'hand')}</span></div>
+          <div className="ct-row-between" style={{ marginBottom: 10 }}>
+            <div className="ct-zone-title" style={{ margin: 0 }}><HandIcon size={13} /> Hand <span className="ct-zone-count">{totalIn(game.cards, 'hand')}</span></div>
+            <ViewToggle mode={viewMode} setMode={setViewMode} />
+          </div>
           {game.cards.filter((c) => c.zones.hand > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
-          {game.cards.filter((c) => c.zones.hand > 0).map((c) => (
-            <CardRow key={c.name} label={c.zones.hand > 1 ? `${c.name} x${c.zones.hand}` : c.name} actions={<>
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'battlefield')}>Play</button>
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'graveyard')}>Discard</button>
-            </>} />
-          ))}
+          {viewMode === 'image' ? (
+            <>
+              <div className="ct-card-grid" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 2 }}>
+                {game.cards.filter((c) => c.zones.hand > 0).map((c) => (
+                  <CardThumb
+                    key={c.name}
+                    name={c.name}
+                    badge={c.zones.hand > 1 ? c.zones.hand : null}
+                    selected={expandedHand === c.name}
+                    onClick={() => setExpandedHand(expandedHand === c.name ? null : c.name)}
+                  />
+                ))}
+              </div>
+              {expandedHand && game.cards.some((c) => c.name === expandedHand && c.zones.hand > 0) && (
+                <div className="ct-thumb-detail">
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{expandedHand}</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'battlefield'); setExpandedHand(null); }}>Play</button>
+                    <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'graveyard'); setExpandedHand(null); }}>Discard</button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            game.cards.filter((c) => c.zones.hand > 0).map((c) => (
+              <CardRow key={c.name} label={c.zones.hand > 1 ? `${c.name} x${c.zones.hand}` : c.name} actions={<>
+                <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'battlefield')}>Play</button>
+                <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'graveyard')}>Discard</button>
+              </>} />
+            ))
+          )}
 
           <div className="ct-zone-title" style={{ marginTop: 16 }}><Layers size={13} /> Battlefield <span className="ct-zone-count">{totalIn(game.cards, 'battlefield')}</span></div>
           {game.cards.filter((c) => c.zones.battlefield > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
