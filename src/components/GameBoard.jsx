@@ -30,6 +30,11 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
   const [drawing, setDrawing] = useState(false);
   const [showDeckList, setShowDeckList] = useState(false);
   const [expandedHand, setExpandedHand] = useState(null);
+  const [showPhases, setShowPhases] = useState(true);
+  const [showHand, setShowHand] = useState(true);
+  const [showBattlefield, setShowBattlefield] = useState(true);
+  const [showGraveyard, setShowGraveyard] = useState(true);
+  const [showExile, setShowExile] = useState(true);
   const [sessionState, setSessionState] = useState(null);
   const [turnFlash, setTurnFlash] = useState(false);
   const prevActivePlayerRef = useRef(undefined);
@@ -186,26 +191,33 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
     <div>
       <div className="ct-grid-3">
         <div className="ct-panel">
-          <div className="ct-zone-title"><Clock size={13} /> Turn {game.turn}</div>
-          <div className="ct-ledger">
-            {PHASES.map((p, i) => {
-              const isCurrent = i === game.phaseIndex;
-              const entries = game.log.filter((l) => l.turn === game.turn && l.phase === p);
-              return (
-                <div key={p} className={`ct-ledger-phase ${isCurrent ? 'current' : ''}`}>
-                  <div className="ct-ledger-label">{p}</div>
-                  {entries.map((e) => <div key={e.id} className="ct-ledger-entry">{e.text}</div>)}
-                </div>
-              );
-            })}
+          <div className="ct-row-between" style={{ marginBottom: showPhases ? 10 : 0 }}>
+            <div className="ct-zone-title" style={{ margin: 0 }}><Clock size={13} /> Turn {game.turn}</div>
+            <button className="ct-btn sm" onClick={() => setShowPhases((v) => !v)}>{showPhases ? 'Hide' : 'Show'}</button>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button className="ct-btn primary sm" onClick={nextPhase}>Next phase <ChevronRight size={14} /></button>
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
-            <input className="ct-input" placeholder="Log a custom action..." value={customAction} onChange={(e) => setCustomAction(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCustomLog()} />
-            <button className="ct-btn sm" onClick={addCustomLog}>Log</button>
-          </div>
+          {showPhases && (
+            <>
+              <div className="ct-ledger">
+                {PHASES.map((p, i) => {
+                  const isCurrent = i === game.phaseIndex;
+                  const entries = game.log.filter((l) => l.turn === game.turn && l.phase === p);
+                  return (
+                    <div key={p} className={`ct-ledger-phase ${isCurrent ? 'current' : ''}`}>
+                      <div className="ct-ledger-label">{p}</div>
+                      {entries.map((e) => <div key={e.id} className="ct-ledger-entry">{e.text}</div>)}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <button className="ct-btn primary sm" onClick={nextPhase}>Next phase <ChevronRight size={14} /></button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+                <input className="ct-input" placeholder="Log a custom action..." value={customAction} onChange={(e) => setCustomAction(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCustomLog()} />
+                <button className="ct-btn sm" onClick={addCustomLog}>Log</button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className={`ct-panel ${turnFlash ? 'ct-turn-flash' : ''}`}>
@@ -260,67 +272,97 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
         </div>
 
         <div className="ct-panel">
-          <div className="ct-row-between" style={{ marginBottom: 10 }}>
+          <div className="ct-row-between" style={{ marginBottom: showHand ? 10 : 0 }}>
             <div className="ct-zone-title" style={{ margin: 0 }}><HandIcon size={13} /> Hand <span className="ct-zone-count">{totalIn(game.cards, 'hand')}</span></div>
-            <ViewToggle mode={viewMode} setMode={setViewMode} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {showHand && <ViewToggle mode={viewMode} setMode={setViewMode} />}
+              <button className="ct-btn sm" onClick={() => setShowHand((v) => !v)}>{showHand ? 'Hide' : 'Show'}</button>
+            </div>
           </div>
-          {game.cards.filter((c) => c.zones.hand > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
-          {viewMode === 'image' ? (
+          {showHand && (
             <>
-              <div className="ct-card-grid" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 2 }}>
-                {game.cards.filter((c) => c.zones.hand > 0).map((c) => (
-                  <CardThumb
-                    key={c.name}
-                    name={c.name}
-                    badge={c.zones.hand > 1 ? c.zones.hand : null}
-                    selected={expandedHand === c.name}
-                    onClick={() => setExpandedHand(expandedHand === c.name ? null : c.name)}
-                  />
-                ))}
-              </div>
-              {expandedHand && game.cards.some((c) => c.name === expandedHand && c.zones.hand > 0) && (
-                <div className="ct-thumb-detail">
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{expandedHand}</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'battlefield'); setExpandedHand(null); }}>Play</button>
-                    <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'graveyard'); setExpandedHand(null); }}>Discard</button>
+              {game.cards.filter((c) => c.zones.hand > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
+              {viewMode === 'image' ? (
+                <>
+                  <div className="ct-card-grid" style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 2 }}>
+                    {game.cards.filter((c) => c.zones.hand > 0).map((c) => (
+                      <CardThumb
+                        key={c.name}
+                        name={c.name}
+                        badge={c.zones.hand > 1 ? c.zones.hand : null}
+                        selected={expandedHand === c.name}
+                        onClick={() => setExpandedHand(expandedHand === c.name ? null : c.name)}
+                      />
+                    ))}
                   </div>
-                </div>
+                  {expandedHand && game.cards.some((c) => c.name === expandedHand && c.zones.hand > 0) && (
+                    <div className="ct-thumb-detail">
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{expandedHand}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'battlefield'); setExpandedHand(null); }}>Play</button>
+                        <button className="ct-btn ghost sm" onClick={() => { moveOne(expandedHand, 'hand', 'graveyard'); setExpandedHand(null); }}>Discard</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                game.cards.filter((c) => c.zones.hand > 0).map((c) => (
+                  <CardRow key={c.name} label={c.zones.hand > 1 ? `${c.name} x${c.zones.hand}` : c.name} actions={<>
+                    <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'battlefield')}>Play</button>
+                    <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'graveyard')}>Discard</button>
+                  </>} />
+                ))
               )}
             </>
-          ) : (
-            game.cards.filter((c) => c.zones.hand > 0).map((c) => (
-              <CardRow key={c.name} label={c.zones.hand > 1 ? `${c.name} x${c.zones.hand}` : c.name} actions={<>
-                <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'battlefield')}>Play</button>
-                <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'hand', 'graveyard')}>Discard</button>
-              </>} />
-            ))
           )}
 
-          <div className="ct-zone-title" style={{ marginTop: 16 }}><Layers size={13} /> Battlefield <span className="ct-zone-count">{totalIn(game.cards, 'battlefield')}</span></div>
-          {game.cards.filter((c) => c.zones.battlefield > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
-          {game.cards.filter((c) => c.zones.battlefield > 0).map((c) => (
-            <CardRow key={c.name} label={c.zones.battlefield > 1 ? `${c.name} x${c.zones.battlefield}` : c.name} actions={<>
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'graveyard')}>Destroy</button>
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'hand')}>Bounce</button>
-              {c.isCommander && <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'commandZone')}>To CZ</button>}
-            </>} />
-          ))}
+          <div className="ct-row-between" style={{ marginTop: 16, marginBottom: showBattlefield ? 10 : 0 }}>
+            <div className="ct-zone-title" style={{ margin: 0 }}><Layers size={13} /> Battlefield <span className="ct-zone-count">{totalIn(game.cards, 'battlefield')}</span></div>
+            <button className="ct-btn sm" onClick={() => setShowBattlefield((v) => !v)}>{showBattlefield ? 'Hide' : 'Show'}</button>
+          </div>
+          {showBattlefield && (
+            <>
+              {game.cards.filter((c) => c.zones.battlefield > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
+              {game.cards.filter((c) => c.zones.battlefield > 0).map((c) => (
+                <CardRow key={c.name} label={c.zones.battlefield > 1 ? `${c.name} x${c.zones.battlefield}` : c.name} actions={<>
+                  <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'graveyard')}>Destroy</button>
+                  <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'hand')}>Bounce</button>
+                  {c.isCommander && <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'battlefield', 'commandZone')}>To CZ</button>}
+                </>} />
+              ))}
+            </>
+          )}
 
-          <div className="ct-zone-title" style={{ marginTop: 16 }}><Skull size={13} /> Graveyard <span className="ct-zone-count">{totalIn(game.cards, 'graveyard')}</span></div>
-          {game.cards.filter((c) => c.zones.graveyard > 0).map((c) => (
-            <CardRow key={c.name} label={c.zones.graveyard > 1 ? `${c.name} x${c.zones.graveyard}` : c.name} actions={<>
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'graveyard', 'hand')}>Return</button>
-              {c.isCommander && <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'graveyard', 'commandZone')}>To CZ</button>}
-            </>} />
-          ))}
+          <div className="ct-row-between" style={{ marginTop: 16, marginBottom: showGraveyard ? 10 : 0 }}>
+            <div className="ct-zone-title" style={{ margin: 0 }}><Skull size={13} /> Graveyard <span className="ct-zone-count">{totalIn(game.cards, 'graveyard')}</span></div>
+            <button className="ct-btn sm" onClick={() => setShowGraveyard((v) => !v)}>{showGraveyard ? 'Hide' : 'Show'}</button>
+          </div>
+          {showGraveyard && (
+            <>
+              {game.cards.filter((c) => c.zones.graveyard > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
+              {game.cards.filter((c) => c.zones.graveyard > 0).map((c) => (
+                <CardRow key={c.name} label={c.zones.graveyard > 1 ? `${c.name} x${c.zones.graveyard}` : c.name} actions={<>
+                  <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'graveyard', 'hand')}>Return</button>
+                  {c.isCommander && <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'graveyard', 'commandZone')}>To CZ</button>}
+                </>} />
+              ))}
+            </>
+          )}
 
-          <div className="ct-zone-title" style={{ marginTop: 16 }}><Ban size={13} /> Exile <span className="ct-zone-count">{totalIn(game.cards, 'exile')}</span></div>
-          {game.cards.filter((c) => c.zones.exile > 0).map((c) => (
-            <CardRow key={c.name} label={c.zones.exile > 1 ? `${c.name} x${c.zones.exile}` : c.name} actions={
-              <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'exile', 'hand')}>Return</button>
-            } />
-          ))}
+          <div className="ct-row-between" style={{ marginTop: 16, marginBottom: showExile ? 10 : 0 }}>
+            <div className="ct-zone-title" style={{ margin: 0 }}><Ban size={13} /> Exile <span className="ct-zone-count">{totalIn(game.cards, 'exile')}</span></div>
+            <button className="ct-btn sm" onClick={() => setShowExile((v) => !v)}>{showExile ? 'Hide' : 'Show'}</button>
+          </div>
+          {showExile && (
+            <>
+              {game.cards.filter((c) => c.zones.exile > 0).length === 0 && <div className="ct-hint" style={{ marginBottom: 10 }}>Empty</div>}
+              {game.cards.filter((c) => c.zones.exile > 0).map((c) => (
+                <CardRow key={c.name} label={c.zones.exile > 1 ? `${c.name} x${c.zones.exile}` : c.name} actions={
+                  <button className="ct-btn ghost sm" onClick={() => moveOne(c.name, 'exile', 'hand')}>Return</button>
+                } />
+              ))}
+            </>
+          )}
         </div>
       </div>
 
