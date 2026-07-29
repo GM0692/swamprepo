@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Swords, BookOpen, History as HistoryIcon, Loader2, Settings as SettingsIcon, Users } from 'lucide-react';
 import { sGet, sSet, sDelete } from './lib/storage.js';
-import { PHASES, uid, timeNow, makeActiveGame } from './lib/constants.js';
+import { PHASES, uid, timeNow, makeActiveGame, ensureTrackers } from './lib/constants.js';
 import { askClaude } from './lib/claudeApi.js';
 import { DecksTab, GameSetup } from './components/DecksAndSetup.jsx';
 import { HandSetup } from './components/HandSetup.jsx';
@@ -29,6 +29,7 @@ export default function App() {
         await sDelete('active-game');
         ag = null;
       }
+      if (ag) ag = ensureTrackers(ag);
       setDeckIndex(di || []);
       setGameIndex(gi || []);
       setActiveGame(ag);
@@ -75,6 +76,7 @@ export default function App() {
       turnsPlayed: activeGame.turn,
       log: activeGame.log,
       finalLife: activeGame.life,
+      finalTrackers: activeGame.trackers,
       analysis: null,
     };
     await sSet(`game:${id}`, record);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, ScrollText } from 'lucide-react';
+import { ChevronRight, ChevronDown, ScrollText, Target } from 'lucide-react';
 import { sGet } from '../lib/storage.js';
+import { CommanderDamageRow, PlayerCounters } from './Trackers.jsx';
 
 export function EndGameModal({ onConfirm, onCancel }) {
   const [result, setResult] = useState('win');
@@ -57,6 +58,24 @@ export function HistoryTab({ gameIndex }) {
                 <div className="ct-suggestion-box" style={{ marginBottom: 16 }}>{detail[g.id].analysis}</div>
               ) : (
                 <div className="ct-hint" style={{ marginBottom: 16 }}>Analysis still processing or unavailable for this game.</div>
+              )}
+              {detail[g.id].finalTrackers && (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="ct-zone-title"><Target size={13} /> Final trackers</div>
+                  {Object.entries(detail[g.id].finalTrackers.commanderDamage || {})
+                    .filter(([, slots]) => slots.some((s) => s.value > 0))
+                    .map(([oppKey, slots], i) => (
+                      <CommanderDamageRow key={oppKey} opponentLabel={`Opponent ${i + 1}`} slots={slots} readOnly onChangeSlot={() => {}} />
+                    ))}
+                  {Object.entries(detail[g.id].finalTrackers.counters || {})
+                    .filter(([, c]) => c.poison || c.energy || (c.custom && c.custom.length))
+                    .map(([playerKey, counters]) => (
+                      <div key={playerKey} style={{ marginTop: 6 }}>
+                        <div className="ct-tracker-section-label">{playerKey === 'you' ? 'You' : `Opponent ${playerKey.replace('opp', '')}`}</div>
+                        <PlayerCounters counters={counters} readOnly onChangePoison={() => {}} onChangeEnergy={() => {}} />
+                      </div>
+                    ))}
+                </div>
               )}
               <div className="ct-zone-title"><ScrollText size={13} /> Full log</div>
               <div style={{ maxHeight: 260, overflowY: 'auto' }}>

@@ -19,7 +19,9 @@
             "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
             "life": { ".validate": "newData.isNumber()" },
             "seatOrder": { ".validate": "newData.isNumber()" },
-            "online": { ".validate": "newData.isBoolean()" }
+            "online": { ".validate": "newData.isBoolean()" },
+            "commanderDamage": { ".validate": "newData.hasChildren()" },
+            "counters": { ".validate": "newData.hasChildren()" }
           }
         }
       }

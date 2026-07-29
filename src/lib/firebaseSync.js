@@ -174,6 +174,17 @@ export async function updateMyLife(roomCode, playerId, delta, currentLife) {
   await update(ref(db, `sessions/${roomCode}`), { lastActiveAt: serverTimestamp() });
 }
 
+// Both scoped to the caller's own players/{playerId} subtree — a plain
+// update() is sufficient here (unlike createSession/leaveSession), since
+// only one already-owned path is touched per call.
+export async function updateMyCommanderDamage(roomCode, playerId, fromPlayerId, slots) {
+  await update(ref(db, `sessions/${roomCode}/players/${playerId}/commanderDamage`), { [fromPlayerId]: slots });
+}
+
+export async function updateMyCounters(roomCode, playerId, counters) {
+  await update(ref(db, `sessions/${roomCode}/players/${playerId}/counters`), counters);
+}
+
 export async function startTimer(roomCode) {
   await update(ref(db, `sessions/${roomCode}/timer`), { running: true, startedAt: serverTimestamp() });
   await update(ref(db, `sessions/${roomCode}`), { lastActiveAt: serverTimestamp() });

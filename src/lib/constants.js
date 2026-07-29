@@ -52,6 +52,34 @@ export function totalIn(cards, zoneKey) {
   return cards.reduce((s, c) => s + c.zones[zoneKey], 0);
 }
 
+// Commander damage is scoped to "damage this seat has taken from an
+// opponent's commander(s)" — the only direction that matters for this
+// player's own loss condition — with 2 slots per opponent for partner/
+// background commanders. Counters are per-player (you + each opponent),
+// since solo play already scorekeeps every seat from one device exactly
+// like `life` does.
+export function makeTrackerSet(opponentCount) {
+  const commanderDamage = {};
+  const counters = { you: { poison: 0, energy: 0, custom: [] } };
+  for (let i = 1; i <= opponentCount; i++) {
+    commanderDamage[`opp${i}`] = [
+      { id: uid(), label: '', value: 0 },
+      { id: uid(), label: '', value: 0 },
+    ];
+    counters[`opp${i}`] = { poison: 0, energy: 0, custom: [] };
+  }
+  return { commanderDamage, counters };
+}
+
+// Non-destructive migration for active-game records saved before trackers
+// existed — fills in defaults instead of the load-time delete-and-restart
+// treatment used for shape mismatches predating `cards`.
+export function ensureTrackers(game) {
+  if (game.trackers && game.trackers.commanderDamage && game.trackers.counters) return game;
+  const opponentCount = game.opponentCount ?? Object.keys(game.life || {}).filter((k) => k !== 'you').length;
+  return { ...game, trackers: makeTrackerSet(opponentCount) };
+}
+
 export function makeActiveGame(deck, opponentCount, sessionLink = null) {
   const cards = [];
   deck.mainboard.forEach((c) => {
@@ -81,6 +109,7 @@ export function makeActiveGame(deck, opponentCount, sessionLink = null) {
     phaseIndex: 0,
     life,
     cards,
+    trackers: makeTrackerSet(opponentCount),
     commanderCastCounts: {},
     log: [],
     sessionId: sessionLink?.roomCode || null,

@@ -15,11 +15,13 @@ export function SyncedLifePanel({ sessionState, myPlayerId }) {
       <div className="ct-zone-title"><Shield size={13} /> Opponents</div>
       {others.map((uid) => {
         const p = players[uid];
+        const poison = p.counters?.poison || 0;
         return (
           <div className="ct-life-row" key={uid}>
             <div className="ct-life-name">
               <span className={`ct-online-dot ${p.online ? 'on' : 'off'}`} title={p.online ? 'Online' : 'Offline'} />
               {p.name}
+              {poison > 0 && <span className={`ct-poison-badge ${poison >= 10 ? 'warn' : ''}`}>☠ {poison}</span>}
             </div>
             <div className="ct-life-num">{p.life}</div>
           </div>

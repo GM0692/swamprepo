@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Clock, Sparkles, Plus, Minus, ChevronRight, Library as LibraryIcon,
-  Skull, Ban, Hand as HandIcon, Layers, Crown, Shield, Loader2, ListTree,
+  Skull, Ban, Hand as HandIcon, Layers, Crown, Shield, Loader2, ListTree, Target,
 } from 'lucide-react';
 import { CardPicker } from './CardPicker.jsx';
 import { ViewToggle, CardThumb } from './CardThumb.jsx';
 import { DeckListPanel } from './DeckListPanel.jsx';
 import { SyncedLifePanel } from './SyncedLifePanel.jsx';
 import { MyLifeControl } from './MyLifeControl.jsx';
+import { MyCommanderDamageControl, MyCounterControl } from './MyTrackers.jsx';
+import { CommanderDamageRow, PlayerCounters } from './Trackers.jsx';
 import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 import { askClaude } from '../lib/claudeApi.js';
 import { bootstrapSession, subscribeToSession } from '../lib/firebaseSync.js';
@@ -20,6 +22,15 @@ function CardRow({ label, actions }) {
       <div className="ct-card-actions">{actions}</div>
     </div>
   );
+}
+
+// Converts a synced player's Firebase counters shape (custom as an object
+// map, RTDB's standard keyed-child pattern) into the array shape the shared
+// Trackers.jsx components expect (matching how local game.trackers stores it).
+function normalizeCounters(c) {
+  const counters = c || {};
+  const custom = Object.entries(counters.custom || {}).map(([id, v]) => ({ id, label: v.label, value: v.value }));
+  return { poison: counters.poison || 0, energy: counters.energy || 0, custom };
 }
 
 export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, setViewMode }) {
@@ -35,6 +46,7 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
   const [showBattlefield, setShowBattlefield] = useState(true);
   const [showGraveyard, setShowGraveyard] = useState(true);
   const [showExile, setShowExile] = useState(true);
+  const [showTrackers, setShowTrackers] = useState(true);
   const [sessionState, setSessionState] = useState(null);
   const [turnFlash, setTurnFlash] = useState(false);
   const prevActivePlayerRef = useRef(undefined);
@@ -58,21 +70,40 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
     return () => { cancelled = true; unsubscribe?.(); };
   }, [game.sessionId]);
 
-  // Mirrors the session's live life totals onto local game.life (you ->
-  // your synced life, others -> opp1..oppN by turn order) so everything
-  // downstream that already reads game.life — the AI prompt, end-game
-  // history — keeps working unmodified, unaware sync exists.
+  // Mirrors the session's live life totals AND trackers (commander damage,
+  // counters) onto local game.life/game.trackers (you -> your synced state,
+  // others -> opp1..oppN by turn order) so everything downstream that already
+  // reads them — the AI prompt, end-game history's finalLife/finalTrackers —
+  // keeps working unmodified, unaware sync exists. Without this, a synced
+  // game's saved history would record the trackers' untouched zero-state
+  // instead of what was actually tracked, since MyCommanderDamageControl/
+  // MyCounterControl write straight to Firebase, not to local game state.
   useEffect(() => {
     if (!game.sessionId || !sessionState) return;
     const order = sessionState.turnOrder?.length ? sessionState.turnOrder : Object.keys(sessionState.players || {});
     const others = order.filter((id) => id !== game.sessionPlayerId);
     const me = sessionState.players?.[game.sessionPlayerId];
     const nextLife = { you: me ? me.life : game.life.you };
+    const nextCommanderDamage = {};
+    const nextCounters = { you: normalizeCounters(me?.counters) };
     others.forEach((id, i) => {
       const p = sessionState.players?.[id];
-      if (p) nextLife[`opp${i + 1}`] = p.life;
+      if (!p) return;
+      nextLife[`opp${i + 1}`] = p.life;
+      nextCounters[`opp${i + 1}`] = normalizeCounters(p.counters);
+      if (me?.commanderDamage?.[id]) nextCommanderDamage[`opp${i + 1}`] = me.commanderDamage[id];
     });
-    setGame((prev) => (JSON.stringify(prev.life) === JSON.stringify(nextLife) ? prev : { ...prev, life: nextLife }));
+    const nextTrackers = { commanderDamage: nextCommanderDamage, counters: nextCounters };
+    setGame((prev) => {
+      const lifeChanged = JSON.stringify(prev.life) !== JSON.stringify(nextLife);
+      const trackersChanged = JSON.stringify(prev.trackers) !== JSON.stringify(nextTrackers);
+      if (!lifeChanged && !trackersChanged) return prev;
+      return {
+        ...prev,
+        life: lifeChanged ? nextLife : prev.life,
+        trackers: trackersChanged ? nextTrackers : prev.trackers,
+      };
+    });
   }, [sessionState, game.sessionId, game.sessionPlayerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Flashes/vibrates only on the transition into your turn, not on initial subscribe.
@@ -135,6 +166,42 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
 
   function adjustLife(key, delta) {
     setGame((prev) => ({ ...prev, life: { ...prev.life, [key]: prev.life[key] + delta } }));
+  }
+
+  function updateCommanderDamageSlot(oppKey, slotIndex, nextSlot) {
+    setGame((prev) => {
+      const slots = prev.trackers.commanderDamage[oppKey].slice();
+      slots[slotIndex] = nextSlot;
+      return { ...prev, trackers: { ...prev.trackers, commanderDamage: { ...prev.trackers.commanderDamage, [oppKey]: slots } } };
+    });
+  }
+
+  function updateCounters(playerKey, nextCounters) {
+    setGame((prev) => ({ ...prev, trackers: { ...prev.trackers, counters: { ...prev.trackers.counters, [playerKey]: nextCounters } } }));
+  }
+
+  function addCustomCounter(playerKey, label) {
+    setGame((prev) => {
+      const pc = prev.trackers.counters[playerKey];
+      const nextPc = { ...pc, custom: [...pc.custom, { id: uid(), label, value: 0 }] };
+      return { ...prev, trackers: { ...prev.trackers, counters: { ...prev.trackers.counters, [playerKey]: nextPc } } };
+    });
+  }
+
+  function changeCustomCounter(playerKey, counterId, value) {
+    setGame((prev) => {
+      const pc = prev.trackers.counters[playerKey];
+      const nextCustom = pc.custom.map((c) => (c.id === counterId ? { ...c, value } : c));
+      return { ...prev, trackers: { ...prev.trackers, counters: { ...prev.trackers.counters, [playerKey]: { ...pc, custom: nextCustom } } } };
+    });
+  }
+
+  function removeCustomCounter(playerKey, counterId) {
+    setGame((prev) => {
+      const pc = prev.trackers.counters[playerKey];
+      const nextCustom = pc.custom.filter((c) => c.id !== counterId);
+      return { ...prev, trackers: { ...prev.trackers, counters: { ...prev.trackers.counters, [playerKey]: { ...pc, custom: nextCustom } } } };
+    });
   }
 
   function addCustomLog() {
@@ -228,6 +295,10 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
                 <MyLifeControl roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
               </div>
               <div style={{ marginTop: 16 }}>
+                <MyCommanderDamageControl roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              </div>
+              <MyCounterControl roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              <div style={{ marginTop: 16 }}>
                 <SyncedLifePanel sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
               </div>
             </>
@@ -248,6 +319,46 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
                   <button className="ct-btn ghost sm" onClick={() => adjustLife(k, 1)}><Plus size={13} /></button>
                 </div>
               ))}
+
+              <div className="ct-row-between" style={{ marginTop: 18, marginBottom: showTrackers ? 10 : 0 }}>
+                <div className="ct-zone-title" style={{ margin: 0 }}><Target size={13} /> Trackers</div>
+                <button className="ct-btn sm" onClick={() => setShowTrackers((v) => !v)}>{showTrackers ? 'Hide' : 'Show'}</button>
+              </div>
+              {showTrackers && game.trackers && (
+                <div>
+                  <div className="ct-tracker-section-label">Commander damage taken</div>
+                  {opponentKeys.map((k, i) => (
+                    <CommanderDamageRow
+                      key={k}
+                      opponentLabel={`From Opponent ${i + 1}`}
+                      slots={game.trackers.commanderDamage[k] || []}
+                      onChangeSlot={(slotIndex, nextSlot) => updateCommanderDamageSlot(k, slotIndex, nextSlot)}
+                    />
+                  ))}
+                  <div className="ct-tracker-section-label" style={{ marginTop: 14 }}>Your counters</div>
+                  <PlayerCounters
+                    counters={game.trackers.counters.you}
+                    onChangePoison={(v) => updateCounters('you', { ...game.trackers.counters.you, poison: v })}
+                    onChangeEnergy={(v) => updateCounters('you', { ...game.trackers.counters.you, energy: v })}
+                    onAddCustom={(label) => addCustomCounter('you', label)}
+                    onChangeCustom={(id, v) => changeCustomCounter('you', id, v)}
+                    onRemoveCustom={(id) => removeCustomCounter('you', id)}
+                  />
+                  {opponentKeys.map((k, i) => (
+                    <div key={k}>
+                      <div className="ct-tracker-section-label" style={{ marginTop: 14 }}>Opponent {i + 1} counters</div>
+                      <PlayerCounters
+                        counters={game.trackers.counters[k]}
+                        onChangePoison={(v) => updateCounters(k, { ...game.trackers.counters[k], poison: v })}
+                        onChangeEnergy={(v) => updateCounters(k, { ...game.trackers.counters[k], energy: v })}
+                        onAddCustom={(label) => addCustomCounter(k, label)}
+                        onChangeCustom={(id, v) => changeCustomCounter(k, id, v)}
+                        onRemoveCustom={(id) => removeCustomCounter(k, id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 

@@ -16,6 +16,7 @@ html, body, #root { height: 100%; margin: 0; }
   --accent-gold-dim: #8a7130;
   --danger: #c5533b;
   --success: #4f8a5b;
+  --warn: #d18b2c;
   font-family: 'Inter', sans-serif;
   background: var(--bg-void);
   color: var(--text-primary);
@@ -186,6 +187,35 @@ html, body, #root { height: 100%; margin: 0; }
 }
 
 .ct-timer-box { background: var(--bg-void); border: 1px solid var(--border-hair); border-radius: 10px; padding: 14px; }
+
+.ct-tracker-group { margin-bottom: 10px; }
+.ct-tracker-group-label { font-size: 11px; color: var(--text-faint); margin-bottom: 4px; font-weight: 600; }
+.ct-tracker-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ct-tracker-chip {
+  display: flex; align-items: center; gap: 6px; background: var(--bg-void); border: 1px solid var(--border-hair);
+  border-radius: 8px; padding: 5px 8px; font-size: 12px;
+}
+.ct-tracker-chip.warn { border-color: var(--warn); background: rgba(209, 139, 44, 0.12); }
+.ct-tracker-label { color: var(--text-muted); min-width: 60px; }
+.ct-tracker-label-input {
+  background: transparent; border: none; border-bottom: 1px dashed var(--border-hair); color: var(--text-primary);
+  font-size: 12px; width: 84px; padding: 2px 0; font-family: 'Inter', sans-serif;
+}
+.ct-tracker-label-input:focus { outline: none; border-bottom-color: var(--accent-gold-dim); }
+.ct-tracker-controls { display: flex; align-items: center; gap: 4px; }
+.ct-tracker-value { font-family: 'Big Shoulders Display', sans-serif; font-size: 15px; font-weight: 700; min-width: 18px; text-align: center; }
+.ct-tracker-chip-wrap { display: flex; align-items: center; gap: 2px; }
+.ct-tracker-add { display: flex; gap: 6px; align-items: center; }
+.ct-tracker-add .ct-input { width: 140px; padding: 6px 8px; font-size: 12px; }
+.ct-tracker-section-label {
+  font-size: 12px; font-weight: 700; color: var(--text-faint); text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 6px;
+}
+.ct-poison-badge {
+  display: inline-flex; align-items: center; gap: 2px; font-size: 10px; margin-left: 6px; padding: 1px 6px;
+  border-radius: 20px; background: var(--bg-void); border: 1px solid var(--border-hair); color: var(--text-muted);
+}
+.ct-poison-badge.warn { border-color: var(--warn); color: var(--warn); }
 
 .ct-my-life { display: flex; align-items: stretch; gap: 10px; }
 .ct-my-life-zone {
