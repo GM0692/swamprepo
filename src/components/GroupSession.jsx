@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Users, LogOut, Play, ArrowUp, ArrowDown } from 'lucide-react';
+import { Users, LogOut, Play, ArrowUp, ArrowDown, Maximize2 } from 'lucide-react';
 import {
   bootstrapSession, createSession, joinSession, startSession,
   leaveSession, subscribeToSession, saveLocalSeat, clearLocalSeat,
 } from '../lib/firebaseSync.js';
 import { SyncedLifePanel } from './SyncedLifePanel.jsx';
 import { TurnTimerPanel } from './TurnTimerPanel.jsx';
+import { TableView } from './TableView.jsx';
+
+const CLOCK_PRESETS_MIN = [10, 20, 30, 45];
 
 export function GroupSession({ onGoToSettings }) {
   const [config, setConfig] = useState(undefined); // undefined = loading, null = not configured
@@ -19,6 +22,9 @@ export function GroupSession({ onGoToSettings }) {
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState('');
   const [draftOrder, setDraftOrder] = useState(null); // host's local reorder before starting
+  const [timerMode, setTimerMode] = useState('stopwatch');
+  const [clockMinutes, setClockMinutes] = useState(20);
+  const [showTableView, setShowTableView] = useState(false);
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
@@ -118,7 +124,8 @@ export function GroupSession({ onGoToSettings }) {
     if (!draftOrder || draftOrder.length === 0) return;
     setBusy(true);
     try {
-      await startSession(seat.roomCode, draftOrder);
+      const budgetMs = timerMode === 'chessclock' ? clockMinutes * 60 * 1000 : null;
+      await startSession(seat.roomCode, draftOrder, timerMode, budgetMs);
     } finally {
       setBusy(false);
     }
@@ -197,13 +204,30 @@ export function GroupSession({ onGoToSettings }) {
             </div>
           ))}
           {seat.isHost && (
-            <button className="ct-btn primary sm" style={{ marginTop: 10 }} onClick={handleStart} disabled={busy || (draftOrder || []).length === 0}>
-              <Play size={13} /> Start session
-            </button>
+            <>
+              <div className="ct-zone-title" style={{ marginTop: 18 }}>Turn timer</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                <button className={`ct-btn sm ${timerMode === 'stopwatch' ? 'primary' : ''}`} onClick={() => setTimerMode('stopwatch')}>Stopwatch</button>
+                <button className={`ct-btn sm ${timerMode === 'chessclock' ? 'primary' : ''}`} onClick={() => setTimerMode('chessclock')}>Chess clock</button>
+              </div>
+              {timerMode === 'chessclock' && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                  {CLOCK_PRESETS_MIN.map((m) => (
+                    <button key={m} className={`ct-btn sm ${clockMinutes === m ? 'primary' : ''}`} onClick={() => setClockMinutes(m)}>{m} min</button>
+                  ))}
+                </div>
+              )}
+              <button className="ct-btn primary sm" style={{ marginTop: 4 }} onClick={handleStart} disabled={busy || (draftOrder || []).length === 0}>
+                <Play size={13} /> Start session
+              </button>
+            </>
           )}
         </div>
+      ) : showTableView ? (
+        <TableView sessionState={sessionState} myPlayerId={seat.playerId} onExit={() => setShowTableView(false)} />
       ) : (
         <div style={{ marginTop: 14 }}>
+          <button className="ct-btn sm" style={{ marginBottom: 14 }} onClick={() => setShowTableView(true)}><Maximize2 size={13} /> Table view</button>
           <SyncedLifePanel roomCode={seat.roomCode} sessionState={sessionState} myPlayerId={seat.playerId} />
           <div style={{ marginTop: 16 }}>
             <TurnTimerPanel roomCode={seat.roomCode} sessionState={sessionState} myPlayerId={seat.playerId} />

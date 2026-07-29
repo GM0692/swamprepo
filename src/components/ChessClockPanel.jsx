@@ -1,29 +1,41 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Square, ChevronRight, Clock } from 'lucide-react';
-import { startTimer, stopTimer, endTurnAndAdvance } from '../lib/firebaseSync.js';
+import { Play, ChevronRight, Clock } from 'lucide-react';
+import { startTimer, endTurnAndAdvanceChessClock, initMyClock } from '../lib/firebaseSync.js';
 import { sGet, sSet } from '../lib/storage.js';
-import { ChessClockPanel } from './ChessClockPanel.jsx';
 
-function formatElapsed(ms) {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
+function formatRemaining(ms) {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function TurnTimerPanel({ roomCode, sessionState, myPlayerId }) {
+// No manual pause, unlike the stopwatch's TurnTimerPanel — a real chess
+// clock only ever runs while it's your turn (auto-started by
+// endTurnAndAdvanceChessClock on handoff) or sits stopped otherwise;
+// allowing a mid-turn pause would need accounting this component doesn't
+// do (clockRemainingMs is only ever decremented at a turn transition).
+export function ChessClockPanel({ roomCode, sessionState, myPlayerId }) {
   const [, forceTick] = useState(0);
   const [confirmEnabled, setConfirmEnabled] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const timer = sessionState?.timer || { running: false, startedAt: null, accumulatedMs: 0 };
+  const timer = sessionState?.timer || { running: false, startedAt: null };
   const activeId = sessionState?.activePlayerId;
   const activeName = sessionState?.players?.[activeId]?.name || 'Someone';
   const isMyTurn = activeId === myPlayerId;
+  const me = sessionState?.players?.[myPlayerId];
+  const budgetMs = sessionState?.clockBudgetMs || 0;
 
   useEffect(() => {
     sGet('settings:confirmTurnEnd', false).then((v) => setConfirmEnabled(!!v));
   }, []);
+
+  useEffect(() => {
+    if (me && me.clockRemainingMs == null && budgetMs > 0) {
+      initMyClock(roomCode, myPlayerId, budgetMs);
+    }
+  }, [me, budgetMs, roomCode, myPlayerId]);
 
   useEffect(() => {
     if (!timer.running) return;
@@ -31,7 +43,11 @@ export function TurnTimerPanel({ roomCode, sessionState, myPlayerId }) {
     return () => clearInterval(id);
   }, [timer.running, timer.startedAt]);
 
-  const elapsedMs = (timer.accumulatedMs || 0) + (timer.running && timer.startedAt ? Date.now() - timer.startedAt : 0);
+  const myRemaining = me?.clockRemainingMs ?? budgetMs;
+  const displayRemaining = isMyTurn && timer.running && timer.startedAt
+    ? myRemaining - (Date.now() - timer.startedAt)
+    : myRemaining;
+  const expired = displayRemaining <= 0;
 
   function toggleConfirm(e) {
     const next = e.target.checked;
@@ -43,7 +59,7 @@ export function TurnTimerPanel({ roomCode, sessionState, myPlayerId }) {
     if (busy) return;
     setBusy(true);
     try {
-      await endTurnAndAdvance(roomCode, sessionState);
+      await endTurnAndAdvanceChessClock(roomCode, sessionState);
     } finally {
       setBusy(false);
     }
@@ -59,25 +75,18 @@ export function TurnTimerPanel({ roomCode, sessionState, myPlayerId }) {
     doEndTurn();
   }
 
-  // Kept below all hooks (rules-of-hooks safe) — chess-clock mode delegates
-  // to a dedicated component instead of branching this one's own JSX,
-  // since the two modes' time-accounting is different enough to not share.
-  if (sessionState?.timerMode === 'chessclock') {
-    return <ChessClockPanel roomCode={roomCode} sessionState={sessionState} myPlayerId={myPlayerId} />;
-  }
-
   return (
     <div className="ct-timer-box">
       <div className="ct-zone-title" style={{ marginBottom: 6 }}>
         <Clock size={13} /> Turn {sessionState?.turnNumber || 1} — {isMyTurn ? 'Your turn' : `${activeName}'s turn`}
       </div>
-      <div className="ct-display" style={{ fontSize: 32, fontWeight: 800 }}>{formatElapsed(elapsedMs)}</div>
+      <div className={`ct-display ${expired ? 'ct-clock-expired' : ''}`} style={{ fontSize: 32, fontWeight: 800 }}>
+        {formatRemaining(displayRemaining)}
+      </div>
       {isMyTurn ? (
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          {!timer.running ? (
-            <button className="ct-btn primary sm" onClick={() => startTimer(roomCode)}><Play size={13} /> Start timer</button>
-          ) : (
-            <button className="ct-btn sm" onClick={() => stopTimer(roomCode, timer)}><Square size={13} /> Stop timer</button>
+          {!timer.running && (
+            <button className="ct-btn primary sm" onClick={() => startTimer(roomCode)}><Play size={13} /> Start clock</button>
           )}
           <button className="ct-btn ghost sm" onClick={handleEndTurnClick} disabled={busy}>End turn &amp; pass <ChevronRight size={13} /></button>
         </div>
@@ -94,7 +103,7 @@ export function TurnTimerPanel({ roomCode, sessionState, myPlayerId }) {
         <div className="ct-modal-overlay">
           <div className="ct-modal" style={{ maxWidth: 360 }}>
             <div className="ct-display" style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>End your turn?</div>
-            <div className="ct-hint" style={{ marginBottom: 20 }}>Are you sure your turn is over? The timer starts automatically for the next player.</div>
+            <div className="ct-hint" style={{ marginBottom: 20 }}>Are you sure your turn is over? Your remaining time stops counting down once you pass.</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="ct-btn ghost sm" onClick={() => setShowConfirm(false)}>Cancel</button>
               <button className="ct-btn primary sm" onClick={confirmEndTurn}>End turn</button>

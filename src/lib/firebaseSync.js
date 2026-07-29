@@ -132,13 +132,15 @@ export async function joinSession(roomCode, playerName) {
   return { roomCode: code, playerId };
 }
 
-export async function startSession(roomCode, orderedPlayerIds) {
+export async function startSession(roomCode, orderedPlayerIds, timerMode = 'stopwatch', clockBudgetMs = null) {
   await update(ref(db, `sessions/${roomCode}`), {
     turnOrder: orderedPlayerIds,
     activePlayerId: orderedPlayerIds[0] || null,
     turnNumber: 1,
     status: 'playing',
     timer: { running: false, startedAt: null, accumulatedMs: 0 },
+    timerMode,
+    clockBudgetMs,
     lastActiveAt: serverTimestamp(),
   });
 }
@@ -196,6 +198,39 @@ export async function stopTimer(roomCode, currentTimerState) {
     running: false,
     startedAt: null,
     accumulatedMs: (currentTimerState.accumulatedMs || 0) + Math.max(0, elapsedSinceStart),
+  });
+}
+
+// Only a player can initialize their own clock — the host can't set another
+// player's clockRemainingMs (blocked by the same auth.uid === $playerId rule
+// that already protects `life`), so each device self-initializes on first
+// seeing chess-clock mode. Idempotent: safe to call more than once.
+export async function initMyClock(roomCode, playerId, budgetMs) {
+  await update(ref(db, `sessions/${roomCode}/players/${playerId}`), { clockRemainingMs: budgetMs });
+}
+
+// Chess-clock counterpart to endTurnAndAdvance: time is only ever decremented
+// at a turn transition (never per-second) to avoid a write-per-second budget
+// problem, mirroring how the stopwatch computes its own display client-side
+// from accumulatedMs + elapsed-since-startedAt. Spans both a player-owned
+// path and shared session-root fields, so — like createSession — this must
+// use update()'s fully-qualified multi-path form against the root.
+export async function endTurnAndAdvanceChessClock(roomCode, currentSessionState) {
+  const order = currentSessionState.turnOrder || [];
+  if (order.length === 0) return;
+  const outgoingId = currentSessionState.activePlayerId;
+  const currentIndex = order.indexOf(outgoingId);
+  const nextIndex = (currentIndex + 1) % order.length;
+  const wrapped = nextIndex === 0;
+  const timer = currentSessionState.timer || {};
+  const elapsed = timer.running && timer.startedAt ? Date.now() - timer.startedAt : 0;
+  const outgoingRemaining = Math.max(0, (currentSessionState.players?.[outgoingId]?.clockRemainingMs ?? 0) - Math.max(0, elapsed));
+  await update(ref(db), {
+    [`sessions/${roomCode}/players/${outgoingId}/clockRemainingMs`]: outgoingRemaining,
+    [`sessions/${roomCode}/activePlayerId`]: order[nextIndex],
+    [`sessions/${roomCode}/turnNumber`]: wrapped ? (currentSessionState.turnNumber || 1) + 1 : currentSessionState.turnNumber || 1,
+    [`sessions/${roomCode}/timer`]: { running: true, startedAt: serverTimestamp(), accumulatedMs: 0 },
+    [`sessions/${roomCode}/lastActiveAt`]: serverTimestamp(),
   });
 }
 

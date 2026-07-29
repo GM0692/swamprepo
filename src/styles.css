@@ -228,6 +228,17 @@ html, body, #root { height: 100%; margin: 0; }
 .ct-trend-loss { background: var(--danger); }
 .ct-trend-draw { background: var(--text-faint); }
 
+.ct-table-view { position: fixed; inset: 0; background: var(--bg-void); z-index: 60; padding: 24px; overflow-y: auto; }
+.ct-table-exit { position: absolute; top: 16px; right: 16px; }
+.ct-table-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 60px; }
+.ct-table-tile { background: var(--bg-panel); border: 1px solid var(--border-hair); border-radius: 14px; padding: 24px; text-align: center; }
+.ct-table-tile.active { border-color: var(--accent-gold); box-shadow: 0 0 0 2px var(--accent-gold); }
+.ct-table-name { font-size: 16px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+.ct-table-life { font-family: 'Big Shoulders Display', sans-serif; font-size: 64px; font-weight: 900; }
+
+@keyframes ct-clock-pulse { 0%, 100% { color: var(--danger); } 50% { color: var(--text-primary); } }
+.ct-clock-expired { animation: ct-clock-pulse 1s ease-in-out infinite; }
+
 .ct-my-life { display: flex; align-items: stretch; gap: 10px; }
 .ct-my-life-zone {
   flex: 1; display: flex; align-items: center; justify-content: center; min-height: 64px;
