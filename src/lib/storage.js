@@ -2,7 +2,7 @@
 // future real backend (e.g. IndexedDB, or a sync API) without touching
 // every component that reads/writes state.
 
-const PREFIX = 'commander-ledger:';
+const PREFIX = 'swamptap:';
 
 export async function sGet(key, fallback = null) {
   try {

@@ -1,4 +1,4 @@
-# CLAUDE.md — Project context for Commander Ledger
+# CLAUDE.md — Project context for SwampTap
 
 This file is read automatically by Claude Code at the start of a session. It exists so a new
 session has the same context as the conversation that built this project, without needing it

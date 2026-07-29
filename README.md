@@ -1,4 +1,4 @@
-# Commander Ledger
+# SwampTap
 
 A tabletop companion for Magic: The Gathering Commander/EDH — import a decklist, set your real
 opening hand, track hand/battlefield/graveyard/exile/command zone as you play, and get AI play

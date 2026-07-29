@@ -128,7 +128,7 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
       <div className="ct-shell">
         <div className="ct-header">
           <div>
-            <div className="ct-title ct-display"><Swords size={26} style={{ color: 'var(--accent-gold)' }} /> Commander Ledger</div>
+            <div className="ct-title ct-display"><Swords size={26} style={{ color: 'var(--accent-gold)' }} /> SwampTap</div>
             <div className="ct-sub">Deck tracking &amp; play-by-play for EDH</div>
           </div>
           <div className="ct-tabs">
