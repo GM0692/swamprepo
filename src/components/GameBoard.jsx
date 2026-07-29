@@ -220,7 +220,7 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
           )}
         </div>
 
-        <div className={`ct-panel ${turnFlash ? 'ct-turn-flash' : ''}`}>
+        <div className={`ct-panel ct-life-panel ${turnFlash ? 'ct-turn-flash' : ''}`}>
           {game.sessionId ? (
             <>
               <TurnTimerPanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
