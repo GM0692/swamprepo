@@ -6,6 +6,7 @@ import {
 import { CardPicker } from './CardPicker.jsx';
 import { DeckListPanel } from './DeckListPanel.jsx';
 import { SyncedLifePanel } from './SyncedLifePanel.jsx';
+import { MyLifeControl } from './MyLifeControl.jsx';
 import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 import { askClaude } from '../lib/claudeApi.js';
 import { bootstrapSession, subscribeToSession } from '../lib/firebaseSync.js';
@@ -208,9 +209,12 @@ Give a short, concrete suggestion (3-5 sentences) for the best play available ri
         <div className={`ct-panel ${turnFlash ? 'ct-turn-flash' : ''}`}>
           {game.sessionId ? (
             <>
-              <SyncedLifePanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              <TurnTimerPanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
               <div style={{ marginTop: 16 }}>
-                <TurnTimerPanel roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+                <MyLifeControl roomCode={game.sessionId} sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <SyncedLifePanel sessionState={sessionState} myPlayerId={game.sessionPlayerId} />
               </div>
             </>
           ) : (

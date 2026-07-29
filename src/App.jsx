@@ -123,20 +123,22 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
     );
   }
 
+  const inGame = tab === 'play' && !!activeGame?.handConfirmed;
+
   return (
     <div className="ct-root">
       <div className="ct-shell">
-        <div className="ct-header">
+        <div className={`ct-header ${inGame ? 'ct-header-compact' : ''}`}>
           <div>
             <div className="ct-title ct-display"><Swords size={26} style={{ color: 'var(--accent-gold)' }} /> SwampTap</div>
             <div className="ct-sub">Deck tracking &amp; play-by-play for EDH</div>
           </div>
           <div className="ct-tabs">
-            <button className={`ct-tab ${tab === 'decks' ? 'active' : ''}`} onClick={() => setTab('decks')}><BookOpen size={15} /> Decks</button>
-            <button className={`ct-tab ${tab === 'play' ? 'active' : ''}`} onClick={() => setTab('play')}><Swords size={15} /> Play</button>
-            <button className={`ct-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}><HistoryIcon size={15} /> History</button>
-            <button className={`ct-tab ${tab === 'group' ? 'active' : ''}`} onClick={() => setTab('group')}><Users size={15} /> Group</button>
-            <button className={`ct-tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><SettingsIcon size={15} /> Settings</button>
+            <button className={`ct-tab ${tab === 'decks' ? 'active' : ''}`} onClick={() => setTab('decks')}><BookOpen size={15} /><span className="ct-tab-label">Decks</span></button>
+            <button className={`ct-tab ${tab === 'play' ? 'active' : ''}`} onClick={() => setTab('play')}><Swords size={15} /><span className="ct-tab-label">Play</span></button>
+            <button className={`ct-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}><HistoryIcon size={15} /><span className="ct-tab-label">History</span></button>
+            <button className={`ct-tab ${tab === 'group' ? 'active' : ''}`} onClick={() => setTab('group')}><Users size={15} /><span className="ct-tab-label">Group</span></button>
+            <button className={`ct-tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><SettingsIcon size={15} /><span className="ct-tab-label">Settings</span></button>
           </div>
         </div>
 
