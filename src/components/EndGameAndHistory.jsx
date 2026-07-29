@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight, ChevronDown, ScrollText, Target } from 'lucide-react';
 import { sGet } from '../lib/storage.js';
 import { CommanderDamageRow, PlayerCounters } from './Trackers.jsx';
+import { StatsTab } from './StatsPanel.jsx';
 
 export function EndGameModal({ onConfirm, onCancel }) {
   const [result, setResult] = useState('win');
@@ -26,6 +27,7 @@ export function EndGameModal({ onConfirm, onCancel }) {
 export function HistoryTab({ gameIndex }) {
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState({});
+  const [view, setView] = useState('games');
 
   async function toggle(id) {
     if (openId === id) { setOpenId(null); return; }
@@ -36,11 +38,19 @@ export function HistoryTab({ gameIndex }) {
     }
   }
 
-  if (gameIndex.length === 0) return <div className="ct-empty">No games recorded yet — finish a game from the Play tab to see it here.</div>;
-
   return (
     <div>
-      {gameIndex.slice().reverse().map((g) => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg-panel)', padding: 4, borderRadius: 10, border: '1px solid var(--border-hair)', width: 'fit-content' }}>
+        <button className={`ct-btn sm ${view === 'games' ? 'primary' : ''}`} onClick={() => setView('games')}>Games</button>
+        <button className={`ct-btn sm ${view === 'stats' ? 'primary' : ''}`} onClick={() => setView('stats')}>Stats</button>
+      </div>
+
+      {view === 'stats' ? (
+        <StatsTab gameIndex={gameIndex} />
+      ) : gameIndex.length === 0 ? (
+        <div className="ct-empty">No games recorded yet — finish a game from the Play tab to see it here.</div>
+      ) : (
+      gameIndex.slice().reverse().map((g) => (
         <div key={g.id}>
           <div className="ct-history-row" onClick={() => toggle(g.id)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -86,7 +96,7 @@ export function HistoryTab({ gameIndex }) {
             </div>
           )}
         </div>
-      ))}
+      )))}
     </div>
   );
 }
