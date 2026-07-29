@@ -13,6 +13,7 @@ import { CommanderDamageRow, PlayerCounters } from './Trackers.jsx';
 import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 import { askClaude } from '../lib/claudeApi.js';
 import { bootstrapSession, subscribeToSession } from '../lib/firebaseSync.js';
+import { trySubmitPodResult } from '../lib/podSync.js';
 import { PHASES, totalIn, uid, timeNow, moveLabel } from '../lib/constants.js';
 
 function CardRow({ label, actions }) {
@@ -105,6 +106,33 @@ export function GameBoard({ game, setGame, deckHistory, onEndGame, viewMode, set
       };
     });
   }, [sessionState, game.sessionId, game.sessionPlayerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Submits this game's result to the linked Pod's ELO leaderboard once
+  // session.gameResult appears (broadcast by whoever clicked "Win" — see
+  // App.jsx's handleConfirmEnd). Every subscribed device runs this, not just
+  // one — the host attempts immediately, everyone else after a grace delay,
+  // and the append-only results/{gameInstanceId} write rule (not this delay)
+  // is what actually guarantees only one submission ever lands even if
+  // several devices race. A device whose own player just ended their game
+  // unmounts (and stops watching) almost immediately after broadcasting, so
+  // this intentionally doesn't assume the broadcaster is also the submitter
+  // — any other still-subscribed pod member's device can pick it up instead.
+  useEffect(() => {
+    if (!game.sessionId || !sessionState?.podId || !sessionState?.gameResult || !sessionState?.gameInstanceId) return undefined;
+    const isHost = sessionState.hostPlayerId === game.sessionPlayerId;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      if (cancelled) return;
+      trySubmitPodResult(
+        sessionState.podId,
+        sessionState.gameInstanceId,
+        Object.keys(sessionState.players || {}),
+        sessionState.gameResult.winnerId,
+        sessionState.turnNumber || game.turn,
+      ).catch(() => { /* another device likely already submitted, or a transient Firebase error — non-fatal */ });
+    }, isHost ? 0 : 9000);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [sessionState?.gameResult, sessionState?.podId, sessionState?.gameInstanceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Flashes/vibrates only on the transition into your turn, not on initial subscribe.
   useEffect(() => {

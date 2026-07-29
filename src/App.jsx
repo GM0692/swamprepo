@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Swords, BookOpen, History as HistoryIcon, Loader2, Settings as SettingsIcon, Users } from 'lucide-react';
+import { Swords, BookOpen, History as HistoryIcon, Loader2, Settings as SettingsIcon, Users, Trophy } from 'lucide-react';
 import { sGet, sSet, sDelete } from './lib/storage.js';
 import { PHASES, uid, timeNow, makeActiveGame, ensureTrackers } from './lib/constants.js';
 import { askClaude } from './lib/claudeApi.js';
+import { broadcastGameResult } from './lib/firebaseSync.js';
 import { DecksTab, GameSetup } from './components/DecksAndSetup.jsx';
 import { HandSetup } from './components/HandSetup.jsx';
 import { GameBoard } from './components/GameBoard.jsx';
 import { EndGameModal, HistoryTab } from './components/EndGameAndHistory.jsx';
 import { SettingsTab } from './components/SettingsTab.jsx';
 import { GroupSession } from './components/GroupSession.jsx';
+import { PodTab } from './components/PodTab.jsx';
 
 export default function App() {
   const [tab, setTab] = useState('play');
@@ -66,6 +68,14 @@ export default function App() {
   }
 
   async function handleConfirmEnd(result) {
+    // Shared "the game is over, X won" event for pod-linked sessions —
+    // harmless no-op server-side if no pod is linked (see broadcastGameResult).
+    // Fire-and-forget: a failure here shouldn't block saving your own local
+    // history, same treatment as the AI analysis call below.
+    if (result === 'win' && activeGame.sessionId) {
+      broadcastGameResult(activeGame.sessionId, activeGame.sessionPlayerId).catch(() => {});
+    }
+
     const id = uid();
     const record = {
       id,
@@ -140,6 +150,7 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
             <button className={`ct-tab ${tab === 'play' ? 'active' : ''}`} onClick={() => setTab('play')}><Swords size={15} /><span className="ct-tab-label">Play</span></button>
             <button className={`ct-tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}><HistoryIcon size={15} /><span className="ct-tab-label">History</span></button>
             <button className={`ct-tab ${tab === 'group' ? 'active' : ''}`} onClick={() => setTab('group')}><Users size={15} /><span className="ct-tab-label">Group</span></button>
+            <button className={`ct-tab ${tab === 'pod' ? 'active' : ''}`} onClick={() => setTab('pod')}><Trophy size={15} /><span className="ct-tab-label">Pod</span></button>
             <button className={`ct-tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}><SettingsIcon size={15} /><span className="ct-tab-label">Settings</span></button>
           </div>
         </div>
@@ -160,6 +171,7 @@ Write a short analysis (4-6 sentences): what went well, what could improve, and 
 
         {tab === 'history' && <HistoryTab gameIndex={gameIndex} />}
         {tab === 'group' && <GroupSession onGoToSettings={() => setTab('settings')} />}
+        {tab === 'pod' && <PodTab onGoToSettings={() => setTab('settings')} />}
         {tab === 'settings' && <SettingsTab />}
 
         {showEndModal && activeGame && <EndGameModal onConfirm={handleConfirmEnd} onCancel={() => setShowEndModal(false)} />}

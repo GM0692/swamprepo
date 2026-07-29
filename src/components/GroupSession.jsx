@@ -7,6 +7,7 @@ import {
 import { SyncedLifePanel } from './SyncedLifePanel.jsx';
 import { TurnTimerPanel } from './TurnTimerPanel.jsx';
 import { TableView } from './TableView.jsx';
+import { loadLocalPod } from '../lib/podSync.js';
 
 const CLOCK_PRESETS_MIN = [10, 20, 30, 45];
 
@@ -25,7 +26,13 @@ export function GroupSession({ onGoToSettings }) {
   const [timerMode, setTimerMode] = useState('stopwatch');
   const [clockMinutes, setClockMinutes] = useState(20);
   const [showTableView, setShowTableView] = useState(false);
+  const [myPod, setMyPod] = useState(null);
+  const [linkPod, setLinkPod] = useState(true);
   const unsubscribeRef = useRef(null);
+
+  useEffect(() => {
+    loadLocalPod().then(setMyPod);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +83,7 @@ export function GroupSession({ onGoToSettings }) {
     if (!hostName.trim()) return;
     setBusy(true); setError('');
     try {
-      const { roomCode, playerId } = await createSession(hostName.trim());
+      const { roomCode, playerId } = await createSession(hostName.trim(), myPod && linkPod ? myPod.podId : null);
       const newSeat = { roomCode, playerId, playerName: hostName.trim(), isHost: true };
       await saveLocalSeat(newSeat);
       setSeat(newSeat);
@@ -161,6 +168,12 @@ export function GroupSession({ onGoToSettings }) {
         )}
         <div className="ct-zone-title"><Users size={13} /> Host a session</div>
         <input className="ct-input" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} style={{ marginBottom: 8 }} />
+        {myPod && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={linkPod} onChange={(e) => setLinkPod(e.target.checked)} style={{ accentColor: 'var(--accent-gold)' }} />
+            Link to pod {myPod.podId} (feeds results into its leaderboard)
+          </label>
+        )}
         <button className="ct-btn primary sm" onClick={handleHost} disabled={busy || !hostName.trim()}>Host a session</button>
 
         <div className="ct-zone-title" style={{ marginTop: 24 }}>Join a session</div>

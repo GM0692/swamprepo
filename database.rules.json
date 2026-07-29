@@ -15,6 +15,9 @@
         "timer": { ".write": "auth != null" },
         "timerMode": { ".write": "auth != null", ".validate": "newData.isString()" },
         "clockBudgetMs": { ".write": "auth != null", ".validate": "newData.isNumber() && newData.val() > 0" },
+        "podId": { ".write": "auth != null", ".validate": "newData.isString()" },
+        "gameInstanceId": { ".write": "auth != null", ".validate": "newData.isString()" },
+        "gameResult": { ".write": "auth != null" },
         "players": {
           "$playerId": {
             ".write": "auth != null && auth.uid === $playerId",
@@ -25,6 +28,33 @@
             "commanderDamage": { ".validate": "newData.hasChildren()" },
             "counters": { ".validate": "newData.hasChildren()" },
             "clockRemainingMs": { ".validate": "newData.isNumber()" }
+          }
+        }
+      }
+    },
+    "pods": {
+      ".read": false,
+      ".write": false,
+      "$podId": {
+        ".read": "auth != null",
+        "name": { ".write": "auth != null" },
+        "createdAt": { ".write": "auth != null" },
+        "createdBy": { ".write": "auth != null" },
+        "members": {
+          "$memberId": {
+            ".write": "auth != null && (auth.uid === $memberId || root.child('pods/' + $podId + '/members/' + auth.uid).exists())",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "elo": { ".validate": "newData.isNumber()" },
+            "gamesPlayed": { ".validate": "newData.isNumber()" },
+            "wins": { ".validate": "newData.isNumber()" },
+            "losses": { ".validate": "newData.isNumber()" },
+            "draws": { ".validate": "newData.isNumber()" }
+          }
+        },
+        "results": {
+          "$resultId": {
+            ".write": "auth != null && !data.exists()",
+            ".validate": "newData.hasChildren(['submittedBy', 'submittedAt', 'players'])"
           }
         }
       }

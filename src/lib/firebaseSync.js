@@ -68,6 +68,16 @@ async function requireAuth() {
   return authReadyPromise;
 }
 
+// Exposed for podSync.js, which reuses this module's Firebase app/auth
+// instead of re-initializing its own — pods and sessions live in the same
+// project.
+export function getDb() {
+  if (!db) throw new Error('Firebase sync is not set up yet — add a config in Settings first.');
+  return db;
+}
+
+export { requireAuth };
+
 function randomRoomCode() {
   let code = '';
   for (let i = 0; i < 4; i++) code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
@@ -88,7 +98,16 @@ function registerDisconnectHandlers(roomCode, playerId) {
   onDisconnect(ref(db, `sessions/${roomCode}/players/${playerId}/online`)).set(false);
 }
 
-export async function createSession(hostName) {
+function randomId() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+// podId is optional — links this session to a persistent Pod so its result
+// can feed the pod's ELO leaderboard. gameInstanceId is a fresh random id,
+// independent of the reusable 4-char roomCode (which gets reclaimed after
+// ABANDONED_MS and could otherwise collide with a stale result key from an
+// unrelated earlier game under the same room code).
+export async function createSession(hostName, podId = null) {
   const user = await requireAuth();
   const roomCode = await pickRoomCode();
   const playerId = user.uid;
@@ -107,6 +126,8 @@ export async function createSession(hostName) {
     [`${base}/activePlayerId`]: null,
     [`${base}/turnNumber`]: 0,
     [`${base}/timer`]: { running: false, startedAt: null, accumulatedMs: 0 },
+    [`${base}/podId`]: podId,
+    [`${base}/gameInstanceId`]: randomId(),
     [`${base}/players/${playerId}`]: { name: hostName.trim().slice(0, 24), life: STARTING_LIFE, seatOrder: 0, online: true },
   });
   registerDisconnectHandlers(roomCode, playerId);
@@ -231,6 +252,18 @@ export async function endTurnAndAdvanceChessClock(roomCode, currentSessionState)
     [`sessions/${roomCode}/turnNumber`]: wrapped ? (currentSessionState.turnNumber || 1) + 1 : currentSessionState.turnNumber || 1,
     [`sessions/${roomCode}/timer`]: { running: true, startedAt: serverTimestamp(), accumulatedMs: 0 },
     [`sessions/${roomCode}/lastActiveAt`]: serverTimestamp(),
+  });
+}
+
+// Shared "the game is over, X won" event for pod-linked sessions — today
+// each device otherwise only records its own result locally, with no
+// cross-device notion of a single outcome. Harmless to call even when no
+// pod is linked (nothing reads gameResult unless sessionState.podId is also
+// present), so callers don't need to pre-check pod-linkage themselves.
+export async function broadcastGameResult(roomCode, winnerId) {
+  const user = await requireAuth();
+  await update(ref(db, `sessions/${roomCode}`), {
+    gameResult: { endedBy: user.uid, endedAt: serverTimestamp(), winnerId },
   });
 }
 
